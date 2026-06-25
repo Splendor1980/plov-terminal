@@ -1,5 +1,5 @@
 // ============================================================
-// js/config.js — КОНФИГУРАЦИЯ (мейннет API)
+// js/config.js — КОНФИГУРАЦИЯ (тестнет)
 // ============================================================
 
 const firebaseConfig = {
@@ -12,15 +12,14 @@ const firebaseConfig = {
 };
 
 const RISE_CHAIN = {
-    chainId: 11155931, // для тестнета, для мейннета нужно будет уточнить
+    chainId: 11155931,
     rpcUrl: "https://testnet.riselabs.xyz",
     explorer: "https://explorer.testnet.riselabs.xyz"
 };
 
-// ⚠️ ПЕРЕКЛЮЧАЕМ НА МЕЙННЕТ RISEx
 const RISEX_API = {
-    rest: "https://api.rise.trade",        // мейннет API
-    ws:   "wss://ws.rise.trade/ws"         // мейннет WebSocket
+    rest: "https://api.testnet.rise.trade",
+    ws:   "wss://ws.testnet.rise.trade/ws"
 };
 
 // Загружается динамически из /v1/system/config
@@ -44,4 +43,4 @@ window.RISE_CHAIN        = RISE_CHAIN;
 window.RISEX_API         = RISEX_API;
 window.RISEX_CONTRACTS   = RISEX_CONTRACTS;
 window.MARKETS           = MARKETS;
-console.log('%cConfig loaded (mainnet API)', 'color:#00ff9d');
+console.log('%cConfig loaded (testnet)', 'color:#00ff9d');
