@@ -1,5 +1,5 @@
 /* ============================================================
-   ПЛОВ Scalping Terminal — стили v2.1
+   ПЛОВ Scalping Terminal — стили v2.4
    ============================================================ */
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -97,9 +97,15 @@ html, body {
 .status-badge.online { background: var(--green-bg); color: var(--green); }
 .status-badge.offline { background: var(--red-bg); color: var(--red); }
 
+/* ===== ИСПРАВЛЕННАЯ КНОПКА-ИКОНКА ===== */
 .btn-icon {
-    background: none; border: 1px solid var(--border);
-    padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 14px;
+    background: none;
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text); /* ← ДОБАВЛЕНО: теперь видно на тёмном фоне */
 }
 .btn-icon:hover { border-color: var(--border2); }
 
@@ -543,7 +549,6 @@ html, body {
     display: flex;
 }
 
-/* Стрелочка пузыря */
 .bubble-arrow {
     position:    absolute;
     top:         -8px;
