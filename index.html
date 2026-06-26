@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ПЛОВ Scalping Terminal v2.1</title>
-    <base href="/plov-terminal/">
     <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" defer></script>
@@ -13,6 +12,7 @@
 </head>
 <body>
 
+<!-- TOP BAR -->
 <div class="top-bar">
     <div class="logo">⚡ ПЛОВ <span class="accent">Scalping</span> <span class="version">v2.1</span></div>
     <div class="top-center">
@@ -28,10 +28,61 @@
         </div>
         <span class="status-badge offline" id="status-badge">● Офлайн</span>
         <button class="btn-icon" id="theme-toggle" onclick="toggleTheme()">☀️</button>
+
+        <!-- Шестерёнка + пузырь -->
+        <div class="settings-wrap">
+            <button class="btn-icon" id="btn-settings" onclick="toggleSettings()">⚙️</button>
+
+            <!-- Речевой пузырь -->
+            <div class="welcome-bubble" id="welcome-bubble">
+                <!-- Заполняется через JS -->
+                <div class="bubble-arrow"></div>
+            </div>
+
+            <!-- Панель настроек -->
+            <div class="settings-panel" id="settings-panel">
+                <div class="settings-title">⚙️ Настройки</div>
+
+                <div class="security-section">
+                    <div class="security-section-title">🔒 Безопасность</div>
+                    <button class="sec-btn active" id="sec-simple" onclick="setSecurityMode('simple')">
+                        <span class="sec-icon">🔓</span>
+                        <div class="sec-text">
+                            <span class="sec-label">Минимальная</span>
+                            <span class="sec-desc">Вход без PIN. Ключ хранится в браузере.</span>
+                        </div>
+                    </button>
+                    <button class="sec-btn" id="sec-advanced" onclick="setSecurityMode('advanced')">
+                        <span class="sec-icon">🔐</span>
+                        <div class="sec-text">
+                            <span class="sec-label">Максимальная</span>
+                            <span class="sec-desc">PIN-код + защита при входе с нового устройства.</span>
+                        </div>
+                    </button>
+                </div>
+
+                <div class="settings-divider"></div>
+
+                <div class="settings-language">
+                    <span class="security-section-title">🌐 Язык</span>
+                    <div class="lang-selector-panel">
+                        <button class="lang-btn active" data-lang="ru" onclick="setLanguage('ru');closeSettings()">RU</button>
+                        <button class="lang-btn" data-lang="en" onclick="setLanguage('en');closeSettings()">EN</button>
+                        <button class="lang-btn" data-lang="zh" onclick="setLanguage('zh');closeSettings()">中文</button>
+                    </div>
+                </div>
+
+                <div class="settings-divider"></div>
+
+                <button class="btn-help" id="btn-show-bubble" onclick="showBubbleManual()">❓ Справка</button>
+            </div>
+        </div>
+
         <button class="btn-auth" id="btn-auth" onclick="handleAuth()">🔑 Войти</button>
     </div>
 </div>
 
+<!-- MAIN GRID -->
 <div class="main-grid">
 
     <!-- LEFT: Order Book -->
@@ -54,7 +105,7 @@
         <div class="trades-list" id="trades-container"></div>
     </div>
 
-    <!-- CENTER: Chart + Trading -->
+    <!-- CENTER -->
     <div class="panel panel-center">
         <div class="price-row">
             <div class="price-main">
@@ -66,7 +117,6 @@
                 <span class="price-funding" id="funding-rate">FR: ---</span>
             </div>
         </div>
-
         <div class="chart-wrap">
             <div class="chart-container" id="chart-container"></div>
             <div class="chart-labels">
@@ -74,12 +124,10 @@
                 <span id="chart-low">L: ---</span>
             </div>
         </div>
-
         <div class="mode-tabs">
             <button class="mode-tab active" data-mode="perp" onclick="setMode('perp')">Перп · RISEx</button>
             <button class="mode-tab" data-mode="spot" onclick="setMode('spot')">Спот · Helios</button>
         </div>
-
         <div class="leverage-row" id="leverage-row">
             <span class="lev-label">Плечо:</span>
             <div class="lev-btns">
@@ -90,7 +138,6 @@
                 <button class="lev-btn"         data-lev="25" onclick="setLeverage(25)">25×</button>
             </div>
         </div>
-
         <div class="amount-row">
             <div class="amount-input-wrap">
                 <input type="number" id="amount-input" placeholder="Сумма USDC" min="0" step="1">
@@ -103,7 +150,6 @@
                 <button class="pct-btn" onclick="setPct(100)">MAX</button>
             </div>
         </div>
-
         <div class="trade-btns">
             <button class="btn-buy" id="btn-buy" onclick="handleBuyClick()">
                 <span class="btn-label">📈 LONG</span>
@@ -114,11 +160,9 @@
                 <span class="btn-sub" id="sell-sub">Открыть шорт</span>
             </button>
         </div>
-
         <div class="hotkeys">
             <kbd>B</kbd> LONG &nbsp; <kbd>S</kbd> SHORT &nbsp; <kbd>Esc</kbd> Сброс
         </div>
-
         <div class="log-wrap">
             <div class="panel-title">📋 Лог</div>
             <div class="trade-log" id="trade-log">
@@ -127,13 +171,13 @@
         </div>
     </div>
 
-    <!-- RIGHT: Wallet + Position + Stats -->
+    <!-- RIGHT -->
     <div class="panel panel-right">
         <div class="section">
             <div class="section-title">💼 Кошелёк</div>
             <div class="wallet-addr">
                 <span class="wallet-short" id="wallet-short">---</span>
-                <button class="btn-copy" onclick="copyAddress()" title="Копировать">⧉</button>
+                <button class="btn-copy" onclick="copyAddress()">⧉</button>
             </div>
             <div class="balances">
                 <div class="bal-row"><span class="bal-label">USDC</span><span class="bal-val" id="bal-usdc">0.00</span></div>
@@ -145,7 +189,6 @@
                 <button class="btn-sm btn-red"   onclick="handleWithdraw()">↑ Вывод</button>
             </div>
         </div>
-
         <div class="section">
             <div class="section-title">📦 Позиция</div>
             <div class="pos-row"><span class="pos-label">Сторона</span><span class="pos-val" id="pos-side">---</span></div>
@@ -155,7 +198,6 @@
             <div class="pos-row"><span class="pos-label">PnL</span><span class="pos-val" id="pos-pnl">+0.00</span></div>
             <button class="btn-close-pos" id="btn-close-pos" onclick="closePosition()" style="display:none">✕ Закрыть позицию</button>
         </div>
-
         <div class="section">
             <div class="section-title">📊 Статистика</div>
             <div class="pos-row"><span class="pos-label">Сделок</span><span class="pos-val" id="stat-trades">0</span></div>
@@ -167,8 +209,10 @@
     </div>
 </div>
 
+<!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<!-- PIN модал (только для Advanced) -->
 <div class="modal-overlay" id="pin-modal" style="display:none">
     <div class="modal">
         <div class="modal-title">🔐 PIN</div>
@@ -185,6 +229,7 @@
 <script src="js/config.js"></script>
 <script src="js/abi.js"></script>
 <script src="js/i18n.js"></script>
+<script src="js/security.js"></script>
 <script src="js/wallet.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/risex.js"></script>

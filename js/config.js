@@ -1,5 +1,5 @@
 // ============================================================
-// js/config.js — КОНФИГУРАЦИЯ (тестнет)
+// js/config.js — КОНФИГУРАЦИЯ
 // ============================================================
 
 const firebaseConfig = {
@@ -43,4 +43,4 @@ window.RISE_CHAIN        = RISE_CHAIN;
 window.RISEX_API         = RISEX_API;
 window.RISEX_CONTRACTS   = RISEX_CONTRACTS;
 window.MARKETS           = MARKETS;
-console.log('%cConfig loaded (testnet)', 'color:#00ff9d');
+console.log('%cConfig loaded', 'color:#00ff9d');
