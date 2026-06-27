@@ -166,14 +166,11 @@ function saveStats(side, volume, win) {
     stats.volume += volume;
     if (win) stats.wins++;
     updateStatsUI();
-
-    // Сохраняем в Firestore
-    if (typeof fbDb !== 'undefined' && currentUser) {
-        fbDb.collection('stats').doc(currentUser.uid).set({
-            trades: stats.trades,
-            wins:   stats.wins,
-            volume: stats.volume
-        }, { merge: true }).catch(() => {});
+    // Сохраняем в localStorage
+    if (currentUser) {
+        localStorage.setItem(`plov_stats_${currentUser.uid}`, JSON.stringify({
+            trades: stats.trades, wins: stats.wins, volume: stats.volume
+        }));
     }
 }
 
@@ -190,11 +187,11 @@ function updateStatsUI() {
 }
 
 async function loadStats() {
-    if (typeof fbDb === 'undefined' || !currentUser) return;
+    if (!currentUser) return;
     try {
-        const doc = await fbDb.collection('stats').doc(currentUser.uid).get();
-        if (doc.exists) {
-            const d    = doc.data();
+        const saved = localStorage.getItem(`plov_stats_${currentUser.uid}`);
+        if (saved) {
+            const d = JSON.parse(saved);
             stats.trades = d.trades || 0;
             stats.wins   = d.wins   || 0;
             stats.volume = d.volume || 0;
