@@ -74,8 +74,26 @@ async function registerSigner(uid) {
         });
 
         // Пробуем все возможные названия поля
-        // expiration = 30 дней в секундах
         const expiration = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+
+        // Получаем номер последнего блока как nonce_anchor
+        let nonceAnchor = '0';
+        try {
+            const blockRes = await fetch(RISE_CHAIN.rpcUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1
+                })
+            });
+            const blockData = await blockRes.json();
+            if (blockData.result) {
+                nonceAnchor = String(parseInt(blockData.result, 16));
+            }
+        } catch (e) {
+            console.warn('block number error:', e.message);
+        }
+        console.log('nonce_anchor:', nonceAnchor);
 
         const body = {
             account:           account,
@@ -85,6 +103,7 @@ async function registerSigner(uid) {
             account_signature: accountSig,
             signer_signature:  accountSig,
             nonce,
+            nonce_anchor:      nonceAnchor,
             expiration:        expiration.toString(),
             expiry:            expiration.toString(),
         };
