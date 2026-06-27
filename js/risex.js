@@ -11,21 +11,26 @@ let _obRunning     = false;
 
 async function loadSystemConfig() {
     try {
-        const res  = await fetch(`${RISEX_API.rest}/v1/system/config`);
+        const res  = await fetch(`${RISEX_API.rest}/v1/markets`);
         if (!res.ok) return;
         const data = await res.json();
-        // Сохраняем адреса контрактов
-        if (data.usdc_address)         RISEX_CONTRACTS.usdc         = data.usdc_address;
-        if (data.perps_manager)        RISEX_CONTRACTS.perpsManager  = data.perps_manager;
-        if (data.authorization)        RISEX_CONTRACTS.authorization = data.authorization;
-        // Иногда вложены иначе
-        if (data.contracts) {
-            RISEX_CONTRACTS.usdc         = data.contracts.usdc         || RISEX_CONTRACTS.usdc;
-            RISEX_CONTRACTS.perpsManager = data.contracts.perps_manager || RISEX_CONTRACTS.perpsManager;
+        const markets = data.data?.markets || data.markets || [];
+        // Берём адреса контрактов из первого маркета
+        if (markets.length > 0) {
+            const m = markets[0];
+            if (m.config?.quote)            RISEX_CONTRACTS.usdc         = m.config.quote;
+            if (m.config?.perps_manager)    RISEX_CONTRACTS.perpsManager  = m.config.perps_manager;
+            if (m.config?.authorization)    RISEX_CONTRACTS.authorization = m.config.authorization;
         }
-        addToLog('⚙️ Конфиг RISEx загружен', 'meta');
+        // Сохраняем полный список маркетов для использования
+        window._risexMarkets = markets;
+        addToLog(t('config_loaded'), 'meta');
+        // DEBUG: показываем структуру первого маркета
+        if (markets.length > 0) {
+            console.log('RISEx market structure:', JSON.stringify(markets[0], null, 2));
+        }
     } catch (e) {
-        addToLog('⚠️ Не удалось загрузить конфиг RISEx: ' + e.message, 'meta');
+        addToLog('⚙️ RISEx config: ' + e.message.slice(0,40), 'meta');
     }
 }
 
@@ -446,12 +451,17 @@ async function closePosition() {
 
 async function fetchMarkPrice() {
     try {
-        const res  = await fetch(
-            `${RISEX_API.rest}/v1/markets/id/${currentMarket}/ticker`);
+        const res  = await fetch(`${RISEX_API.rest}/v1/markets`);
         if (!res.ok) return null;
         const data = await res.json();
+        const markets = data.data?.markets || data.markets || [];
+        const market  = markets.find(m => String(m.market_id) === String(currentMarket));
+        if (!market) return null;
         const norm = v => { const n = parseFloat(v); return n > 1e15 ? n / 1e18 : n; };
-        return norm(data.mark_price || data.last_price || data.price || 0);
+        return norm(
+            market.mark_price || market.last_price ||
+            market.ticker?.mark_price || market.ticker?.last_price || 0
+        );
     } catch { return null; }
 }
 
