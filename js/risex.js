@@ -37,10 +37,24 @@ async function loadSystemConfig() {
 
 async function registerSigner(uid) {
     if (userWallet.signerRegistered) return true;
-    if (!userWallet.address) return false;
+
+    // Ждём пока адрес точно загрузится
+    let attempts = 0;
+    while (!userWallet.address && attempts < 10) {
+        await new Promise(r => setTimeout(r, 300));
+        attempts++;
+    }
+    if (!userWallet.address) {
+        console.warn('registerSigner: адрес кошелька не загружен');
+        return false;
+    }
 
     const ok = await unlockSigner(uid);
     if (!ok) return false;
+
+    // Сохраняем адрес локально чтобы не потерять
+    const account = userWallet.address;
+    console.log('registerSigner: account =', account);
 
     try {
         addToLog(t('signer_reg'), 'meta');
@@ -56,22 +70,25 @@ async function registerSigner(uid) {
             ]
         };
         const accountSig = await signer.signTypedData(domain, accountTypes, {
-            authorizedAddress: userWallet.address, nonce
+            authorizedAddress: account, nonce
         });
+
+        const body = {
+            account:           account,
+            authorized_signer: account,
+            signature:         accountSig,
+            nonce
+        };
+        console.log('register-signer body:', JSON.stringify(body));
 
         const regRes = await fetch(`${RISEX_API.rest}/v1/auth/register-signer`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                account:           userWallet.address,
-                authorized_signer: userWallet.address,
-                signature:         accountSig,
-                nonce
-            })
+            body:    JSON.stringify(body)
         });
 
         const result = await regRes.json().catch(() => ({}));
-        console.log('register-signer:', regRes.status, result);
+        console.log('register-signer response:', regRes.status, result);
 
         if (regRes.ok || regRes.status === 409) {
             userWallet.signerRegistered = true;
@@ -79,7 +96,8 @@ async function registerSigner(uid) {
             addToLog(t('signer_ok'), 'success');
             return true;
         } else {
-            addToLog('⚠️ Signer ' + regRes.status + ': ' + (result.message || result.error || JSON.stringify(result)).slice(0,60), 'meta');
+            const errMsg = result.error?.message || result.message || JSON.stringify(result);
+            addToLog('⚠️ Signer ' + regRes.status + ': ' + errMsg.slice(0,80), 'meta');
             return false;
         }
     } catch (e) {
@@ -87,6 +105,7 @@ async function registerSigner(uid) {
         return false;
     }
 }
+
 
 // ── WebSocket стакан ─────────────────────────────────────────
 
