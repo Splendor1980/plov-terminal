@@ -214,21 +214,38 @@ function _connectWS(marketId) {
         _ws = new WebSocket(RISEX_API.ws);
 
         _ws.onopen = () => {
-            addToLog('📡 WebSocket подключён', 'meta');
+            addToLog(t('ws_connected'), 'meta');
             const live = document.getElementById('ob-live');
             if (live) { live.textContent = 'LIVE'; live.style.color = 'var(--green)'; }
-            // Подписка на стакан и сделки
+
+            // Правильный формат из SDK: {method, params}
             _ws.send(JSON.stringify({
-                channel: 'orderbook', market_ids: [marketId] }));
+                method: 'subscribe',
+                params: { channel: 'orderbook', market_ids: [marketId] }
+            }));
             _ws.send(JSON.stringify({
-                channel: 'trades', market_ids: [marketId] }));
+                method: 'subscribe',
+                params: { channel: 'trades', market_ids: [marketId] }
+            }));
             _ws.send(JSON.stringify({
-                channel: 'ticker', market_ids: [marketId] }));
-            // Если авторизован — приватные каналы
+                method: 'subscribe',
+                params: { channel: 'ticker', market_ids: [marketId] }
+            }));
+
             if (isLoggedIn && userWallet.address) {
                 _ws.send(JSON.stringify({
-                    channel: 'positions', account: userWallet.address }));
+                    method: 'subscribe',
+                    params: { channel: 'positions', account: userWallet.address }
+                }));
             }
+
+            // Heartbeat каждые 15 сек как в SDK
+            if (window._wsHeartbeat) clearInterval(window._wsHeartbeat);
+            window._wsHeartbeat = setInterval(() => {
+                if (_ws && _ws.readyState === WebSocket.OPEN) {
+                    _ws.send(JSON.stringify({ method: 'ping' }));
+                }
+            }, 15000);
         };
 
         _ws.onmessage = (e) => {
@@ -251,18 +268,37 @@ function _connectWS(marketId) {
 }
 
 function _handleWsMessage(msg) {
-    if (!msg || !msg.channel) return;
+    if (!msg) return;
 
-    if (msg.channel === 'orderbook') {
-        renderOrderBook(msg.data || msg);
-    } else if (msg.channel === 'trades') {
-        renderTrades(msg.data || msg.trades || []);
-    } else if (msg.channel === 'ticker') {
-        const d = msg.data || msg;
-        updateTickerUI(d);
-    } else if (msg.channel === 'positions') {
-        const d = msg.data || msg;
-        if (d) updatePositionUI(d);
+    // Логируем первые сообщения для диагностики
+    if (!window._wsMsgCount) window._wsMsgCount = 0;
+    if (window._wsMsgCount < 5) {
+        console.log('WS message:', JSON.stringify(msg).slice(0, 300));
+        window._wsMsgCount++;
+    }
+
+    // Определяем тип сообщения — разные API используют разные форматы
+    const channel = msg.channel || msg.type || msg.event;
+    const data    = msg.data || msg.result || msg;
+
+    if (!channel) return;
+
+    if (channel === 'orderbook' || channel === 'order_book') {
+        renderOrderBook(data);
+    } else if (channel === 'trades' || channel === 'trade') {
+        renderTrades(data.trades || data.fills || (Array.isArray(data) ? data : []));
+    } else if (channel === 'ticker' || channel === 'mark_price') {
+        updateTickerUI(data);
+    } else if (channel === 'positions' || channel === 'position') {
+        if (data) updatePositionUI(data);
+    } else if (channel === 'subscribed' || channel === 'pong' || channel === 'connected') {
+        // служебные сообщения — игнорируем
+    } else {
+        // Неизвестный канал — логируем
+        if (window._wsMsgCount < 10) {
+            console.log('Unknown WS channel:', channel, JSON.stringify(msg).slice(0, 200));
+            window._wsMsgCount++;
+        }
     }
 }
 
@@ -270,25 +306,44 @@ function _handleWsMessage(msg) {
 
 function renderOrderBook(data) {
     if (!data) return;
-    const asks = data.asks || [];
-    const bids = data.bids || [];
 
-    // Нормализуем цены (могут быть в 1e18)
+    // Данные могут быть вложены в data.data
+    const d    = data.data || data;
+    const asks = d.asks || [];
+    const bids = d.bids || [];
+
+    if (!asks.length && !bids.length) return;
+
+    // Нормализуем цены
+    // Формат из SDK: [price_string, size_string]
+    // Или объект: {price, quantity/size}
     const norm = (v) => {
         const n = parseFloat(v);
         return n > 1e15 ? n / 1e18 : n;
+    };
+
+    // Конвертируем массив [price, size] в объект если нужно
+    const toObj = (level) => {
+        if (Array.isArray(level)) {
+            return { price: level[0], quantity: level[1] };
+        }
+        return level;
     };
 
     const asksEl = document.getElementById('asks-container');
     const bidsEl = document.getElementById('bids-container');
     if (!asksEl || !bidsEl) return;
 
+    // Конвертируем в объекты
+    const asksObj = asks.map(toObj);
+    const bidsObj = bids.map(toObj);
+
     // Максимальный объём для depth bar
-    const allSizes = [...asks, ...bids].map(r => parseFloat(r.quantity || r.size || 0));
+    const allSizes = [...asksObj, ...bidsObj].map(r => parseFloat(r.quantity || r.size || 0));
     const maxSize  = Math.max(...allSizes, 1);
 
     // ASKS (красные) — рисуем снизу вверх
-    const asksSorted = [...asks].sort((a, b) => norm(a.price) - norm(b.price));
+    const asksSorted = [...asksObj].sort((a, b) => norm(a.price) - norm(b.price));
     asksEl.innerHTML = '';
     asksSorted.slice(0, 10).forEach(level => {
         const price = norm(level.price);
@@ -310,7 +365,7 @@ function renderOrderBook(data) {
     });
 
     // BIDS (зелёные)
-    const bidsSorted = [...bids].sort((a, b) => norm(b.price) - norm(a.price));
+    const bidsSorted = [...bidsObj].sort((a, b) => norm(b.price) - norm(a.price));
     bidsEl.innerHTML = '';
     bidsSorted.slice(0, 10).forEach(level => {
         const price = norm(level.price);
@@ -333,8 +388,8 @@ function renderOrderBook(data) {
 
     // Спред
     if (asksSorted.length && bidsSorted.length) {
-        const bestAsk  = norm(asksSorted[0].price);
-        const bestBid  = norm(bidsSorted[0].price);
+        const bestAsk  = norm(asksSorted[0].price  || asksSorted[0][0]);
+        const bestBid  = norm(bidsSorted[0].price  || bidsSorted[0][0]);
         const spread   = (bestAsk - bestBid).toFixed(1);
         const spreadEl = document.getElementById('spread-value');
         if (spreadEl) spreadEl.textContent = spread + ' USDC';
