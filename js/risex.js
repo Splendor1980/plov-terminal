@@ -71,10 +71,20 @@ async function registerSigner(uid) {
             if (domainRes.ok) {
                 const raw = await domainRes.json();
                 const d   = raw.data || raw;
-                domain = { name: d.name, version: d.version, chainId: BigInt(d.chainId) };
-                if (d.verifyingContract) domain.verifyingContract = d.verifyingContract;
+                // API возвращает snake_case: chain_id, verifying_contract
+                const chainId  = d.chain_id || d.chainId;
+                const contract = d.verifying_contract || d.verifyingContract;
+                domain = {
+                    name:    d.name,
+                    version: d.version,
+                    chainId: BigInt(chainId),
+                    verifyingContract: contract,
+                };
+                console.log('domain loaded:', domain);
             }
-        } catch {}
+        } catch (e) {
+            console.warn('eip712-domain error:', e.message);
+        }
         console.log('domain:', domain);
 
         // Шаг 2 — nonceState
