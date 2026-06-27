@@ -38,7 +38,6 @@ async function loadSystemConfig() {
 async function registerSigner(uid) {
     if (userWallet.signerRegistered) return true;
 
-    // Ждём адрес
     let attempts = 0;
     while (!userWallet.address && attempts < 10) {
         await new Promise(r => setTimeout(r, 300));
@@ -54,67 +53,50 @@ async function registerSigner(uid) {
     try {
         addToLog(t('signer_reg'), 'meta');
 
-        // Шаг 1 — получаем EIP-712 домен динамически
-        let domain;
+        // Шаг 1 — EIP-712 домен
+        let domain = { name: 'RISEx', version: '1', chainId: BigInt(RISE_CHAIN.chainId) };
         try {
             const domainRes = await fetch(`${RISEX_API.rest}/v1/auth/eip712-domain`);
             if (domainRes.ok) {
                 const d = await domainRes.json();
-                domain = {
-                    name:              d.name    || d.data?.name,
-                    version:           d.version || d.data?.version,
-                    chainId:           BigInt(d.chainId || d.data?.chainId || RISE_CHAIN.chainId),
-                    verifyingContract: d.verifyingContract || d.data?.verifyingContract,
-                };
-                console.log('EIP-712 domain:', domain);
+                const dd = d.data || d;
+                domain = { name: dd.name, version: dd.version, chainId: BigInt(dd.chainId) };
+                if (dd.verifyingContract) domain.verifyingContract = dd.verifyingContract;
             }
-        } catch (e) {
-            console.warn('eip712-domain fetch failed:', e.message);
-        }
+        } catch {}
+        console.log('domain:', domain);
 
-        // Fallback если домен не загрузился
-        if (!domain) {
-            domain = {
-                name:    'RISEx',
-                version: '1',
-                chainId: BigInt(RISE_CHAIN.chainId),
-            };
-        }
-        // Убираем verifyingContract если undefined — ethers.js выбросит ошибку
-        if (!domain.verifyingContract) delete domain.verifyingContract;
-
-        // Шаг 2 — получаем номер блока как nonceAnchor
+        // Шаг 2 — получаем nonceAnchor из API
         let nonceAnchor = 0;
+        let nonceBitmapIndex = 0;
         try {
-            const blockRes = await fetch(RISE_CHAIN.rpcUrl, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({
-                    jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1
-                })
-            });
-            const blockData = await blockRes.json();
-            if (blockData.result) {
-                nonceAnchor = parseInt(blockData.result, 16);
+            const nonceRes = await fetch(`${RISEX_API.rest}/v1/nonce-state/${account}`);
+            if (nonceRes.ok) {
+                const raw = await nonceRes.json();
+                const nd  = raw.data || raw;
+                console.log('nonce-state:', nd);
+                nonceAnchor     = (parseInt(nd.nonce_anchor || nd.nonceAnchor || '0') + 1);
+                nonceBitmapIndex = parseInt(nd.nonce_bitmap_index ?? nd.nonceBitmapIndex ?? 0);
             }
         } catch (e) {
-            console.warn('blockNumber error:', e.message);
+            console.warn('nonce-state error:', e.message);
         }
-        console.log('nonceAnchor:', nonceAnchor);
+        console.log('nonceAnchor:', nonceAnchor, 'nonceBitmapIndex:', nonceBitmapIndex);
 
-        // Шаг 3 — EIP-712 типы из community SDK
+        // Шаг 3 — expiration = 90 дней
+        const expiration = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
+
+        // Шаг 4 — EIP-712 подпись (из community SDK)
         const REGISTER_SIGNER_TYPES = {
             RegisterSigner: [
-                { name: 'account',     type: 'address' },
-                { name: 'signer',      type: 'address' },
-                { name: 'message',     type: 'string'  },
-                { name: 'expiration',  type: 'uint32'  },
-                { name: 'nonceAnchor', type: 'uint48'  },
-                { name: 'nonceBitmap', type: 'uint8'   },
+                { name: 'account',          type: 'address' },
+                { name: 'signer',           type: 'address' },
+                { name: 'message',          type: 'string'  },
+                { name: 'expiration',       type: 'uint32'  },
+                { name: 'nonceAnchor',      type: 'uint48'  },
+                { name: 'nonceBitmap',      type: 'uint8'   },
             ]
         };
-
-        const expiration = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
 
         const registerValue = {
             account:     account,
@@ -122,25 +104,25 @@ async function registerSigner(uid) {
             message:     'Registering signer for RISEx',
             expiration:  expiration,
             nonceAnchor: nonceAnchor,
-            nonceBitmap: 0,
+            nonceBitmap: nonceBitmapIndex,
         };
         console.log('registerValue:', registerValue);
 
-        // Подписываем от имени account
         const accountSig = await signer.signTypedData(domain, REGISTER_SIGNER_TYPES, registerValue);
-        console.log('accountSig:', accountSig);
 
-        // Шаг 4 — отправляем
+        // Шаг 5 — отправляем с точными именами полей из SDK
         const body = {
-            account:           account,
-            signer:            account,
-            message:           'Registering signer for RISEx',
-            expiration:        expiration,
-            nonce_anchor:      String(nonceAnchor),
-            nonce_bitmap:      0,
-            account_signature: accountSig,
-            signer_signature:  accountSig,
+            account:             account,
+            signer:              account,
+            message:             'Registering signer for RISEx',
+            nonce_anchor:        String(nonceAnchor),
+            nonce_bitmap_index:  nonceBitmapIndex,
+            expiration:          String(expiration),
+            account_signature:   accountSig,
+            signer_signature:    accountSig,
+            label:               'plov-terminal',
         };
+        console.log('register-signer body:', JSON.stringify(body));
 
         const regRes = await fetch(`${RISEX_API.rest}/v1/auth/register-signer`, {
             method:  'POST',
@@ -167,6 +149,7 @@ async function registerSigner(uid) {
         return false;
     }
 }
+
 
 
 
