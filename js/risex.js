@@ -25,10 +25,7 @@ async function loadSystemConfig() {
         // Сохраняем полный список маркетов для использования
         window._risexMarkets = markets;
         addToLog(t('config_loaded'), 'meta');
-        // DEBUG: показываем структуру первого маркета
-        if (markets.length > 0) {
-            console.log('RISEx market structure:', JSON.stringify(markets[0], null, 2));
-        }
+
     } catch (e) {
         addToLog('⚙️ RISEx config: ' + e.message.slice(0,40), 'meta');
     }
@@ -46,66 +43,47 @@ async function registerSigner(uid) {
     if (!ok) return false;
 
     try {
-        addToLog('🔐 Регистрируем кошелёк в RISEx...', 'info');
+        addToLog(t('signer_reg'), 'meta');
 
-        // Шаг 1 — получаем nonce
-        const nonceRes = await fetch(
-            `${RISEX_API.rest}/v1/auth/nonce?account=${userWallet.address}`);
+        const nonce = Math.floor(Date.now() / 1000).toString();
 
-        let nonce = Date.now().toString();
-        if (nonceRes.ok) {
-            const nd = await nonceRes.json();
-            nonce = nd.nonce || nonce;
-        }
+        const domain = { name: 'RISE', version: '1', chainId: RISE_CHAIN.chainId };
 
-        // Шаг 2 — EIP-712 подпись регистрации
-        const domain = {
-            name:              'RISEx',
-            version:           '1',
-            chainId:           RISE_CHAIN.chainId,
-        };
-        const types = {
-            RegisterSigner: [
-                { name: 'account', type: 'address' },
-                { name: 'signer',  type: 'address' },
-                { name: 'nonce',   type: 'string'  },
+        const accountTypes = {
+            AuthorizeAddress: [
+                { name: 'authorizedAddress', type: 'address' },
+                { name: 'nonce',             type: 'string'  },
             ]
         };
-        const value = {
-            account: userWallet.address,
-            signer:  userWallet.address,
-            nonce
-        };
+        const accountSig = await signer.signTypedData(domain, accountTypes, {
+            authorizedAddress: userWallet.address, nonce
+        });
 
-        const signature = await signer.signTypedData(domain, types, value);
-
-        // Шаг 3 — отправляем
         const regRes = await fetch(`${RISEX_API.rest}/v1/auth/register-signer`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                account:            userWallet.address,
-                signer:             userWallet.address,
-                account_signature:  signature,
-                signer_signature:   signature,
+                account:           userWallet.address,
+                authorized_signer: userWallet.address,
+                signature:         accountSig,
                 nonce
             })
         });
 
+        const result = await regRes.json().catch(() => ({}));
+        console.log('register-signer:', regRes.status, result);
+
         if (regRes.ok || regRes.status === 409) {
-            // 409 = уже зарегистрирован, тоже ок
             userWallet.signerRegistered = true;
-            saveWalletLocal(uid);
-            addToLog('✅ Кошелёк зарегистрирован в RISEx', 'success');
+            if (uid) saveWalletLocal(uid);
+            addToLog(t('signer_ok'), 'success');
             return true;
         } else {
-            const err = await regRes.json().catch(() => ({}));
-            addToLog('⚠️ Регистрация signer: ' + (err.message || regRes.status), 'meta');
-            // Не блокируем — пробуем торговать всё равно
+            addToLog('⚠️ Signer ' + regRes.status + ': ' + (result.message || result.error || JSON.stringify(result)).slice(0,60), 'meta');
             return false;
         }
     } catch (e) {
-        addToLog('⚠️ Ошибка регистрации: ' + e.message.slice(0, 60), 'meta');
+        addToLog('⚠️ Signer error: ' + e.message.slice(0, 60), 'meta');
         return false;
     }
 }
