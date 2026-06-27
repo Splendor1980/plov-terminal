@@ -304,15 +304,51 @@ function _handleWsMessage(msg) {
 
 // ── Рендер стакана ───────────────────────────────────────────
 
+// Локальный кэш стакана — накапливаем уровни
+const _obCache = { asks: {}, bids: {} };
+
 function renderOrderBook(data) {
     if (!data) return;
 
-    // Данные могут быть вложены в data.data
     const d    = data.data || data;
+    const type = d.type || data.type || 'update';
+
+    // Snapshot — сбрасываем кэш
+    if (type === 'snapshot') {
+        _obCache.asks = {};
+        _obCache.bids = {};
+    }
+
     const asks = d.asks || [];
     const bids = d.bids || [];
 
-    if (!asks.length && !bids.length) return;
+    // Обновляем кэш — merge уровней
+    // Формат: [{price, quantity}] или [[price, size]]
+    const toObj = (level) => Array.isArray(level)
+        ? { price: level[0], quantity: level[1] }
+        : level;
+
+    asks.map(toObj).forEach(level => {
+        const price = String(level.price);
+        const qty   = parseFloat(level.quantity || level.size || 0);
+        if (qty === 0) delete _obCache.asks[price];
+        else _obCache.asks[price] = qty;
+    });
+
+    bids.map(toObj).forEach(level => {
+        const price = String(level.price);
+        const qty   = parseFloat(level.quantity || level.size || 0);
+        if (qty === 0) delete _obCache.bids[price];
+        else _obCache.bids[price] = qty;
+    });
+
+    // Конвертируем кэш обратно в массивы
+    const cachedAsks = Object.entries(_obCache.asks)
+        .map(([price, quantity]) => ({ price, quantity }));
+    const cachedBids = Object.entries(_obCache.bids)
+        .map(([price, quantity]) => ({ price, quantity }));
+
+    if (!cachedAsks.length && !cachedBids.length) return;
 
     // Нормализуем цены
     // Формат из SDK: [price_string, size_string]
@@ -334,16 +370,12 @@ function renderOrderBook(data) {
     const bidsEl = document.getElementById('bids-container');
     if (!asksEl || !bidsEl) return;
 
-    // Конвертируем в объекты
-    const asksObj = asks.map(toObj);
-    const bidsObj = bids.map(toObj);
-
     // Максимальный объём для depth bar
-    const allSizes = [...asksObj, ...bidsObj].map(r => parseFloat(r.quantity || r.size || 0));
+    const allSizes = [...cachedAsks, ...cachedBids].map(r => parseFloat(r.quantity || 0));
     const maxSize  = Math.max(...allSizes, 1);
 
     // ASKS (красные) — рисуем снизу вверх
-    const asksSorted = [...asksObj].sort((a, b) => norm(a.price) - norm(b.price));
+    const asksSorted = [...cachedAsks].sort((a, b) => norm(a.price) - norm(b.price));
     asksEl.innerHTML = '';
     asksSorted.slice(0, 10).forEach(level => {
         const price = norm(level.price);
@@ -365,7 +397,7 @@ function renderOrderBook(data) {
     });
 
     // BIDS (зелёные)
-    const bidsSorted = [...bidsObj].sort((a, b) => norm(b.price) - norm(a.price));
+    const bidsSorted = [...cachedBids].sort((a, b) => norm(b.price) - norm(a.price));
     bidsEl.innerHTML = '';
     bidsSorted.slice(0, 10).forEach(level => {
         const price = norm(level.price);
