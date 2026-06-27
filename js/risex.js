@@ -74,15 +74,19 @@ async function registerSigner(uid) {
         });
 
         // Пробуем все возможные названия поля
+        // expiration = 30 дней в секундах
+        const expiration = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+
         const body = {
             account:           account,
             signer:            account,
             authorized_signer: account,
-            signer_address:    account,
             signature:         accountSig,
             account_signature: accountSig,
             signer_signature:  accountSig,
-            nonce
+            nonce,
+            expiration:        expiration.toString(),
+            expiry:            expiration.toString(),
         };
         console.log('register-signer body:', JSON.stringify(body));
 
