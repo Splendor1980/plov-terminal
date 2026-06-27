@@ -137,12 +137,9 @@ async function registerSigner(uid) {
             message:           'Registering signer for RISEx',
             expiration:        expiration,
             nonce_anchor:      String(nonceAnchor),
-            nonceAnchor:       String(nonceAnchor),
             nonce_bitmap:      0,
-            nonceBitmap:       0,
             account_signature: accountSig,
             signer_signature:  accountSig,
-            signature:         accountSig,
         };
 
         const regRes = await fetch(`${RISEX_API.rest}/v1/auth/register-signer`, {
