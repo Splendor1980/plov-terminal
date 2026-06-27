@@ -1,4 +1,4 @@
- // ============================================================
+// ============================================================
 // js/config.js — КОНФИГУРАЦИЯ
 // ============================================================
 
@@ -12,7 +12,7 @@ const firebaseConfig = {
 };
 
 const RISE_CHAIN = {
-    chainId:  1750,
+    chainId:  4153,
     rpcUrl:   "https://mainnet.riselabs.xyz",
     explorer: "https://explorer.riselabs.xyz"
 };
