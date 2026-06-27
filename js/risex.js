@@ -358,13 +358,7 @@ function renderOrderBook(data) {
         return n > 1e15 ? n / 1e18 : n;
     };
 
-    // Конвертируем массив [price, size] в объект если нужно
-    const toObj = (level) => {
-        if (Array.isArray(level)) {
-            return { price: level[0], quantity: level[1] };
-        }
-        return level;
-    };
+    // toObj определён в кэше выше
 
     const asksEl = document.getElementById('asks-container');
     const bidsEl = document.getElementById('bids-container');
