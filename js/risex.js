@@ -80,6 +80,8 @@ async function registerSigner(uid) {
                 chainId: BigInt(RISE_CHAIN.chainId),
             };
         }
+        // Убираем verifyingContract если undefined — ethers.js выбросит ошибку
+        if (!domain.verifyingContract) delete domain.verifyingContract;
 
         // Шаг 2 — получаем номер блока как nonceAnchor
         let nonceAnchor = 0;
@@ -134,8 +136,8 @@ async function registerSigner(uid) {
             signer:            account,
             message:           'Registering signer for RISEx',
             expiration:        expiration,
-            nonce_anchor:      nonceAnchor,
-            nonceAnchor:       nonceAnchor,
+            nonce_anchor:      String(nonceAnchor),
+            nonceAnchor:       String(nonceAnchor),
             nonce_bitmap:      0,
             nonceBitmap:       0,
             account_signature: accountSig,
