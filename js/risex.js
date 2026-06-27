@@ -38,76 +38,110 @@ async function loadSystemConfig() {
 async function registerSigner(uid) {
     if (userWallet.signerRegistered) return true;
 
-    // Ждём пока адрес точно загрузится
+    // Ждём адрес
     let attempts = 0;
     while (!userWallet.address && attempts < 10) {
         await new Promise(r => setTimeout(r, 300));
         attempts++;
     }
-    if (!userWallet.address) {
-        console.warn('registerSigner: адрес кошелька не загружен');
-        return false;
-    }
+    if (!userWallet.address) return false;
 
     const ok = await unlockSigner(uid);
     if (!ok) return false;
 
-    // Сохраняем адрес локально чтобы не потерять
     const account = userWallet.address;
-    console.log('registerSigner: account =', account);
 
     try {
         addToLog(t('signer_reg'), 'meta');
 
-        const nonce = Math.floor(Date.now() / 1000).toString();
+        // Шаг 1 — получаем EIP-712 домен динамически
+        let domain;
+        try {
+            const domainRes = await fetch(`${RISEX_API.rest}/v1/auth/eip712-domain`);
+            if (domainRes.ok) {
+                const d = await domainRes.json();
+                domain = {
+                    name:              d.name    || d.data?.name,
+                    version:           d.version || d.data?.version,
+                    chainId:           BigInt(d.chainId || d.data?.chainId || RISE_CHAIN.chainId),
+                    verifyingContract: d.verifyingContract || d.data?.verifyingContract,
+                };
+                console.log('EIP-712 domain:', domain);
+            }
+        } catch (e) {
+            console.warn('eip712-domain fetch failed:', e.message);
+        }
 
-        const domain = { name: 'RISE', version: '1', chainId: RISE_CHAIN.chainId };
+        // Fallback если домен не загрузился
+        if (!domain) {
+            domain = {
+                name:    'RISEx',
+                version: '1',
+                chainId: BigInt(RISE_CHAIN.chainId),
+            };
+        }
 
-        const accountTypes = {
-            AuthorizeAddress: [
-                { name: 'authorizedAddress', type: 'address' },
-                { name: 'nonce',             type: 'string'  },
-            ]
-        };
-        const accountSig = await signer.signTypedData(domain, accountTypes, {
-            authorizedAddress: account, nonce
-        });
-
-        // Пробуем все возможные названия поля
-        const expiration = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
-
-        // Получаем номер последнего блока как nonce_anchor
-        let nonceAnchor = '0';
+        // Шаг 2 — получаем номер блока как nonceAnchor
+        let nonceAnchor = 0;
         try {
             const blockRes = await fetch(RISE_CHAIN.rpcUrl, {
-                method: 'POST',
+                method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+                body:    JSON.stringify({
                     jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1
                 })
             });
             const blockData = await blockRes.json();
             if (blockData.result) {
-                nonceAnchor = String(parseInt(blockData.result, 16));
+                nonceAnchor = parseInt(blockData.result, 16);
             }
         } catch (e) {
-            console.warn('block number error:', e.message);
+            console.warn('blockNumber error:', e.message);
         }
-        console.log('nonce_anchor:', nonceAnchor);
+        console.log('nonceAnchor:', nonceAnchor);
 
+        // Шаг 3 — EIP-712 типы из community SDK
+        const REGISTER_SIGNER_TYPES = {
+            RegisterSigner: [
+                { name: 'account',     type: 'address' },
+                { name: 'signer',      type: 'address' },
+                { name: 'message',     type: 'string'  },
+                { name: 'expiration',  type: 'uint32'  },
+                { name: 'nonceAnchor', type: 'uint48'  },
+                { name: 'nonceBitmap', type: 'uint8'   },
+            ]
+        };
+
+        const expiration = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+
+        const registerValue = {
+            account:     account,
+            signer:      account,
+            message:     'Registering signer for RISEx',
+            expiration:  expiration,
+            nonceAnchor: nonceAnchor,
+            nonceBitmap: 0,
+        };
+        console.log('registerValue:', registerValue);
+
+        // Подписываем от имени account
+        const accountSig = await signer.signTypedData(domain, REGISTER_SIGNER_TYPES, registerValue);
+        console.log('accountSig:', accountSig);
+
+        // Шаг 4 — отправляем
         const body = {
             account:           account,
             signer:            account,
-            authorized_signer: account,
-            signature:         accountSig,
+            message:           'Registering signer for RISEx',
+            expiration:        expiration,
+            nonce_anchor:      nonceAnchor,
+            nonceAnchor:       nonceAnchor,
+            nonce_bitmap:      0,
+            nonceBitmap:       0,
             account_signature: accountSig,
             signer_signature:  accountSig,
-            nonce,
-            nonce_anchor:      nonceAnchor,
-            expiration:        expiration.toString(),
-            expiry:            expiration.toString(),
+            signature:         accountSig,
         };
-        console.log('register-signer body:', JSON.stringify(body));
 
         const regRes = await fetch(`${RISEX_API.rest}/v1/auth/register-signer`, {
             method:  'POST',
@@ -125,14 +159,16 @@ async function registerSigner(uid) {
             return true;
         } else {
             const errMsg = result.error?.message || result.message || JSON.stringify(result);
-            addToLog('⚠️ Signer ' + regRes.status + ': ' + errMsg.slice(0,80), 'meta');
+            addToLog('⚠️ Signer: ' + errMsg.slice(0, 80), 'meta');
             return false;
         }
     } catch (e) {
-        addToLog('⚠️ Signer error: ' + e.message.slice(0, 60), 'meta');
+        addToLog('⚠️ Signer error: ' + e.message.slice(0, 80), 'meta');
+        console.error('registerSigner exception:', e);
         return false;
     }
 }
+
 
 
 // ── WebSocket стакан ─────────────────────────────────────────
