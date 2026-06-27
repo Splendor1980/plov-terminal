@@ -73,10 +73,15 @@ async function registerSigner(uid) {
             authorizedAddress: account, nonce
         });
 
+        // Пробуем все возможные названия поля
         const body = {
             account:           account,
+            signer:            account,
             authorized_signer: account,
+            signer_address:    account,
             signature:         accountSig,
+            account_signature: accountSig,
+            signer_signature:  accountSig,
             nonce
         };
         console.log('register-signer body:', JSON.stringify(body));
