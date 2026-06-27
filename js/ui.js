@@ -166,12 +166,21 @@ function updateChart() {
 
 async function pollPrice() {
     try {
-        const res = await fetch(
-            `${RISEX_API.rest}/v1/markets/id/${currentMarket}/ticker`);
+        const res = await fetch(`${RISEX_API.rest}/v1/markets`);
         if (!res.ok) return;
-        const data = await res.json();
-        const norm = v => { const n = parseFloat(v); return n > 1e15 ? n / 1e18 : n; };
-        const price = norm(data.mark_price || data.last_price || data.price || 0);
+        const data    = await res.json();
+        const markets = data.data?.markets || data.markets || [];
+        const market  = markets.find(m => String(m.market_id) === String(currentMarket))
+                     || markets[0];
+        if (!market) return;
+        const norm  = v => { const n = parseFloat(v); return n > 1e15 ? n / 1e18 : n; };
+        // Пробуем разные поля где может быть цена
+        const price = norm(
+            market.mark_price      || market.last_price     ||
+            market.index_price     || market.oracle_price   ||
+            market.ticker?.mark_price || market.ticker?.last_price ||
+            market.stats?.last_price  || 0
+        );
         if (price > 0) { lastPrice = price; updatePriceUI(price); }
     } catch {}
 }
