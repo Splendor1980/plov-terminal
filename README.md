@@ -58,10 +58,6 @@
 
 We actively listen to the community — your suggestions via GitHub Issues are very welcome!
 
-## 📬 Support & Community
-
-- **GitHub Issues** — for bugs and feature requests
-- Telegram / X (add your links here)
 
 ## ⭐ Support the Project
 
