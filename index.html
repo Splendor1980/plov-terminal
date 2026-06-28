@@ -1,240 +1,120 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ПЛОВ Scalping Terminal v2.1</title>
-    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" defer></script>
-    <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
+// ============================================================
+// js/main.js — ТОЧКА ВХОДА v2.4
+// ============================================================
 
-<!-- TOP BAR -->
-<div class="top-bar">
-    <div class="logo">⚡ ПЛОВ <span class="accent">Scalping</span> <span class="version">v2.1</span></div>
-    <div class="top-center">
-        <span class="market-label">BTC-PERP</span>
-        <span class="top-price" id="top-price">---</span>
-        <span class="top-change" id="top-change">+0.00%</span>
-    </div>
-    <div class="top-right">
-        <div class="lang-selector">
-            <button class="lang-btn active" data-lang="ru" onclick="setLanguage('ru')">RU</button>
-            <button class="lang-btn" data-lang="en" onclick="setLanguage('en')">EN</button>
-            <button class="lang-btn" data-lang="zh" onclick="setLanguage('zh')">中文</button>
-        </div>
-        <span class="status-badge offline" id="status-badge">● Офлайн</span>
-        <button class="btn-icon" id="theme-toggle" onclick="toggleTheme()">☀️</button>
+document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'b' || e.key === 'B') { e.preventDefault(); handleBuyClick();  }
+    if (e.key === 's' || e.key === 'S') { e.preventDefault(); handleSellClick(); }
+    if (e.key === 'Escape') {
+        document.getElementById('amount-input').value = '';
+        closeSettings();
+        hideBubble();
+    }
+});
 
-        <!-- Шестерёнка + пузырь -->
-        <div class="settings-wrap">
-            <button class="btn-icon" id="btn-settings" onclick="toggleSettings()">⚙️</button>
+window.addEventListener('DOMContentLoaded', async () => {
+    console.log('%c🚀 ПЛОВ Scalping Terminal v2.1', 'color:#00ff9d;font-weight:bold');
 
-            <!-- Речевой пузырь -->
-            <div class="welcome-bubble" id="welcome-bubble">
-                <!-- Заполняется через JS -->
-                <div class="bubble-arrow"></div>
-            </div>
+    // 1. Инициализируем безопасность (до всего остального)
+    initSecurity();
 
-            <!-- Панель настроек -->
-            <div class="settings-panel" id="settings-panel">
-                <div class="settings-title">⚙️ Настройки</div>
+    // 2. UI + язык
+    initUI();
+    loadLanguage();
+    setLanguage(currentLang);
+    initChart();
 
-                <div class="security-section">
-                    <div class="security-section-title">🔒 Безопасность</div>
-                    <button class="sec-btn active" id="sec-simple" onclick="setSecurityMode('simple')">
-                        <span class="sec-icon">🔓</span>
-                        <div class="sec-text">
-                            <span class="sec-label">Минимальная</span>
-                            <span class="sec-desc">Вход без PIN. Ключ хранится в браузере.</span>
-                        </div>
-                    </button>
-                    <button class="sec-btn" id="sec-advanced" onclick="setSecurityMode('advanced')">
-                        <span class="sec-icon">🔐</span>
-                        <div class="sec-text">
-                            <span class="sec-label">Максимальная</span>
-                            <span class="sec-desc">PIN-код + защита при входе с нового устройства.</span>
-                        </div>
-                    </button>
-                </div>
+    // 3. Сообщение о localhost
+    if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
+        setTimeout(() => {
+            addToLog('ℹ️ Localhost: стакан не загрузится из-за CORS — на Vercel заработает', 'meta');
+        }, 800);
+    }
 
-                <div class="settings-divider"></div>
+    // 4. Ждём Firebase
+    let firebaseReady = false;
+    for (let i = 0; i < 20; i++) {
+        if (typeof firebase !== 'undefined' && firebase.app) { firebaseReady = true; break; }
+        await new Promise(r => setTimeout(r, 300));
+    }
 
-                <div class="settings-language">
-                    <span class="security-section-title">🌐 Язык</span>
-                    <div class="lang-selector-panel">
-                        <button class="lang-btn active" data-lang="ru" onclick="setLanguage('ru');closeSettings()">RU</button>
-                        <button class="lang-btn" data-lang="en" onclick="setLanguage('en');closeSettings()">EN</button>
-                        <button class="lang-btn" data-lang="zh" onclick="setLanguage('zh');closeSettings()">中文</button>
-                    </div>
-                </div>
+    if (!firebaseReady) {
+        addToLog('❌ Firebase не загружен. Проверьте интернет.', 'error');
+        return;
+    }
 
-                <div class="settings-divider"></div>
+    // 5. Инициализируем Firebase
+    let app;
+    try { app = firebase.app(); } catch { app = firebase.initializeApp(firebaseConfig); }
+    window.fbAuth   = firebase.auth();
+    window.fbDb     = firebase.firestore();
+    window.fbGoogle = new firebase.auth.GoogleAuthProvider();
 
-                <button class="btn-help" id="btn-show-bubble" onclick="showBubbleManual()">❓ Справка</button>
-            </div>
-        </div>
+    // 6. Конфиг RISEx
+    await loadSystemConfig();
 
-        <button class="btn-auth" id="btn-auth" onclick="handleAuth()">🔑 Войти</button>
-    </div>
-</div>
+    // Стакан и цена публичные — запускаем сразу без авторизации
+    startOrderBook(currentMarket);
+    startPriceFeed();
 
-<!-- MAIN GRID -->
-<div class="main-grid">
+    // 7. Auth listener
+    fbAuth.onAuthStateChanged(async (user) => {
+        if (user) {
+            currentUser = user;
+            isLoggedIn  = true;
+            updateAuthUI();
+            setLanguage(currentLang);
 
-    <!-- LEFT: Order Book -->
-    <div class="panel panel-left">
-        <div class="panel-title">📊 Стакан <span class="badge-live" id="ob-live">LIVE</span></div>
-        <div class="ob-header">
-            <span id="ob-price-label">Цена</span>
-            <span id="ob-vol-label">Кол-во</span>
-            <span id="ob-total-label">Сумма</span>
-        </div>
-        <div class="ob-asks" id="asks-container"><div class="ob-placeholder">Загрузка...</div></div>
-        <div class="ob-spread"><span id="spread-label">Спред: </span><span id="spread-value">---</span></div>
-        <div class="ob-bids" id="bids-container"><div class="ob-placeholder">Загрузка...</div></div>
-        <div class="panel-title" style="margin-top:8px">⚡ Сделки</div>
-        <div class="ob-header">
-            <span id="t-price-label">Цена</span>
-            <span id="t-vol-label">Кол-во</span>
-            <span id="t-time-label">Время</span>
-        </div>
-        <div class="trades-list" id="trades-container"></div>
-    </div>
+            addToLog(`${t('welcome')}, ${user.displayName || user.email}!`, 'success');
 
-    <!-- CENTER -->
-    <div class="panel panel-center">
-        <div class="price-row">
-            <div class="price-main">
-                <span class="price-value" id="btc-price">---</span>
-                <span class="price-unit">USDC</span>
-            </div>
-            <div class="price-meta">
-                <span class="price-change" id="price-change">+0.00%</span>
-                <span class="price-funding" id="funding-rate">FR: ---</span>
-            </div>
-        </div>
-        <div class="chart-wrap">
-            <div class="chart-container" id="chart-container"></div>
-            <div class="chart-labels">
-                <span id="chart-high">H: ---</span>
-                <span id="chart-low">L: ---</span>
-            </div>
-        </div>
-        <div class="mode-tabs">
-            <button class="mode-tab active" data-mode="perp" onclick="setMode('perp')">Перп · RISEx</button>
-            <button class="mode-tab" data-mode="spot" onclick="setMode('spot')">Спот · Helios</button>
-        </div>
-        <div class="leverage-row" id="leverage-row">
-            <span class="lev-label">Плечо:</span>
-            <div class="lev-btns">
-                <button class="lev-btn active" data-lev="1"  onclick="setLeverage(1)">1×</button>
-                <button class="lev-btn"         data-lev="2"  onclick="setLeverage(2)">2×</button>
-                <button class="lev-btn"         data-lev="5"  onclick="setLeverage(5)">5×</button>
-                <button class="lev-btn"         data-lev="10" onclick="setLeverage(10)">10×</button>
-                <button class="lev-btn"         data-lev="25" onclick="setLeverage(25)">25×</button>
-            </div>
-        </div>
-        <div class="amount-row">
-            <div class="amount-input-wrap">
-                <input type="number" id="amount-input" placeholder="Сумма USDC" min="0" step="1">
-                <span class="amount-unit">USDC</span>
-            </div>
-            <div class="quick-pct">
-                <button class="pct-btn" onclick="setPct(25)">25%</button>
-                <button class="pct-btn" onclick="setPct(50)">50%</button>
-                <button class="pct-btn" onclick="setPct(75)">75%</button>
-                <button class="pct-btn" onclick="setPct(100)">MAX</button>
-            </div>
-        </div>
-        <div class="trade-btns">
-            <button class="btn-buy" id="btn-buy" onclick="handleBuyClick()">
-                <span class="btn-label">📈 LONG</span>
-                <span class="btn-sub" id="buy-sub">Открыть лонг</span>
-            </button>
-            <button class="btn-sell" id="btn-sell" onclick="handleSellClick()">
-                <span class="btn-label">📉 SHORT</span>
-                <span class="btn-sub" id="sell-sub">Открыть шорт</span>
-            </button>
-        </div>
-        <div class="hotkeys">
-            <kbd>B</kbd> LONG &nbsp; <kbd>S</kbd> SHORT &nbsp; <kbd>Esc</kbd> Сброс
-        </div>
-        <div class="log-wrap">
-            <div class="panel-title">📋 Лог</div>
-            <div class="trade-log" id="trade-log">
-                <div class="log-line muted">⏳ Загрузка...</div>
-            </div>
-        </div>
-    </div>
+            await createOrLoadWallet(user.uid);
+            if (!userWallet.address) return;
 
-    <!-- RIGHT -->
-    <div class="panel panel-right">
-        <div class="section">
-            <div class="section-title">💼 Кошелёк</div>
-            <div class="wallet-addr">
-                <span class="wallet-short" id="wallet-short">---</span>
-                <button class="btn-copy" onclick="copyAddress()">⧉</button>
-            </div>
-            <div class="balances">
-                <div class="bal-row"><span class="bal-label">USDC</span><span class="bal-val" id="bal-usdc">0.00</span></div>
-                <div class="bal-row"><span class="bal-label">WBTC</span><span class="bal-val" id="bal-wbtc">0.000000</span></div>
-                <div class="bal-row"><span class="bal-label">RISEx</span><span class="bal-val green" id="bal-risex">0.00</span></div>
-            </div>
-            <div class="wallet-actions">
-                <button class="btn-sm btn-green" onclick="handleDeposit()">↓ Депозит</button>
-                <button class="btn-sm btn-red"   onclick="handleWithdraw()">↑ Вывод</button>
-            </div>
-        </div>
-        <div class="section">
-            <div class="section-title">📦 Позиция</div>
-            <div class="pos-row"><span class="pos-label">Сторона</span><span class="pos-val" id="pos-side">---</span></div>
-            <div class="pos-row"><span class="pos-label">Размер</span><span class="pos-val" id="pos-size">---</span></div>
-            <div class="pos-row"><span class="pos-label">Вход</span><span class="pos-val" id="pos-entry">---</span></div>
-            <div class="pos-row"><span class="pos-label">Ликвид.</span><span class="pos-val red" id="pos-liq">---</span></div>
-            <div class="pos-row"><span class="pos-label">PnL</span><span class="pos-val" id="pos-pnl">+0.00</span></div>
-            <button class="btn-close-pos" id="btn-close-pos" onclick="closePosition()" style="display:none">✕ Закрыть позицию</button>
-        </div>
-        <div class="section">
-            <div class="section-title">📊 Статистика</div>
-            <div class="pos-row"><span class="pos-label">Сделок</span><span class="pos-val" id="stat-trades">0</span></div>
-            <div class="pos-row"><span class="pos-label">Winrate</span><span class="pos-val" id="stat-winrate">0%</span></div>
-            <div class="pos-row"><span class="pos-label">Объём</span><span class="pos-val" id="stat-volume">0</span></div>
-            <div class="pos-row"><span class="pos-label">Лучшая</span><span class="pos-val green" id="stat-best">---</span></div>
-            <div class="pos-row"><span class="pos-label">Худшая</span><span class="pos-val red" id="stat-worst">---</span></div>
-        </div>
-    </div>
-</div>
+            updateBalanceUI();
+            // registerSigner не нужен в режиме симуляции
+            loadStats().catch(() => {});
 
-<!-- Toast -->
-<div class="toast" id="toast"></div>
+            // Стакан уже запущен до входа
+            if (typeof loadMyTrades === 'function') loadMyTrades();
+            addToLog(t('hotkeys_hint'), 'meta');
 
-<!-- PIN модал (только для Advanced) -->
-<div class="modal-overlay" id="pin-modal" style="display:none">
-    <div class="modal">
-        <div class="modal-title">🔐 PIN</div>
-        <input type="password" id="pin-input" maxlength="8"
-               placeholder="••••" class="pin-input" autocomplete="off">
-        <div class="modal-btns">
-            <button class="btn-sm btn-green" onclick="confirmPin()">OK</button>
-            <button class="btn-sm btn-red"   onclick="cancelPin()">Отмена</button>
-        </div>
-        <div class="pin-error" id="pin-error"></div>
-    </div>
-</div>
+            // Показываем пузырь при первом входе
+            showWelcomeBubble();
 
-<script src="js/config.js"></script>
-<script src="js/abi.js"></script>
-<script src="js/i18n.js"></script>
-<script src="js/security.js"></script>
-<script src="js/wallet.js"></script>
-<script src="js/auth.js"></script>
-<script src="js/risex.js"></script>
-<script src="js/trading.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/main.js"></script>
-</body>
-</html>
+        } else {
+            isLoggedIn  = false;
+            currentUser = null;
+            updateAuthUI();
+            setLanguage(currentLang);
+            stopPriceFeed();
+            stopOrderBook();
+            addToLog(t('login_start'), 'info');
+        }
+    });
+
+    console.log('%c✅ ПЛОВ готов', 'color:#00ff9d;font-weight:bold');
+});
+
+// Экспорты
+window.handleAuth            = handleAuth;
+window.toggleTheme           = toggleTheme;
+window.setLanguage           = setLanguage;
+window.handleBuyClick        = handleBuyClick;
+window.handleSellClick       = handleSellClick;
+window.setPct                = setPct;
+window.setMode               = setMode;
+window.setLeverage           = setLeverage;
+window.closePosition         = closePosition;
+window.handleDeposit         = handleDeposit;
+window.handleWithdraw        = handleWithdraw;
+window.copyAddress           = copyAddress;
+window.confirmPin            = confirmPin;
+window.cancelPin             = cancelPin;
+window.showToast             = showToast;
+window.toggleSettings        = toggleSettings;
+window.closeSettings         = closeSettings;
+window.setSecurityMode       = setSecurityMode;
+window.showBubbleManual      = showBubbleManual;
+window.dismissBubble         = dismissBubble;
+window.dismissAndOpenSettings = dismissAndOpenSettings;
