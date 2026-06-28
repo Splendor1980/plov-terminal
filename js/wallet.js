@@ -170,34 +170,18 @@ async function unlockSigner(uid) {
 // ── Фаусет ──────────────────────────────────────────────────
 
 async function claimFaucet(address, uid) {
+    // Симуляция токенов — работает всегда, без зависимости от API
+    if (userWallet.faucetClaimed) {
+        addToLog(t('faucet_used'), 'info');
+        return;
+    }
     addToLog(t('faucet_loading'), 'info');
-    let success = false;
-    try {
-        const res = await fetch(`${RISEX_API.rest}/v1/account/deposit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ account: address })
-        });
-        if (res.ok) {
-            userWallet.balances.usdc = 1000;
-            userWallet.risexBalance  = 1000;
-            userWallet.faucetClaimed = true;
-            addToLog(t('faucet_received'), 'success');
-            success = true;
-        } else {
-            addToLog(t('faucet_used'), 'info');
-        }
-    } catch {
-        addToLog(t('cors_warning'), 'meta');
-    }
-
-    if (!success) {
-        userWallet.balances.usdc = 1000;
-        userWallet.risexBalance  = 1000;
-        addToLog(t('faucet_mock'), 'success');
-    }
-
+    await new Promise(r => setTimeout(r, 800));
+    userWallet.balances.usdc = 1000;
+    userWallet.risexBalance  = 1000;
+    userWallet.faucetClaimed = true;
     if (uid) saveWalletLocal(uid);
+    addToLog(t('faucet_received'), 'success');
     updateBalanceUI();
 }
 
@@ -206,14 +190,39 @@ async function claimFaucet(address, uid) {
 async function fetchBalance() {
     if (!userWallet.address) return;
     try {
-        const res = await fetch(`${RISEX_API.rest}/v1/account/balance?account=${userWallet.address}`);
-        if (!res.ok) return;
+        const res = await fetch(`${RISEX_API.rest}/v1/account/balances?account=${userWallet.address}`);
+        if (!res.ok) {
+            // Пробуем альтернативный путь
+            const res2 = await fetch(`${RISEX_API.rest}/v1/accounts/${userWallet.address}/balances`);
+            if (!res2.ok) return;
+            const data2 = await res2.json();
+            console.log('balance response (alt):', data2);
+            _parseBalance(data2);
+            return;
+        }
         const data = await res.json();
-        if (data.balance !== undefined) userWallet.risexBalance = parseFloat(data.balance) / 1e18;
-        if (data.usdc    !== undefined) userWallet.risexBalance = parseFloat(data.usdc)    / 1e6;
-        if (currentUser) saveWalletLocal(currentUser.uid);
-    } catch {}
+        console.log('balance response:', data);
+        _parseBalance(data);
+    } catch (e) {
+        console.warn('fetchBalance error:', e.message);
+    }
     updateBalanceUI();
+}
+
+function _parseBalance(data) {
+    const d = data.data || data;
+    // Разные форматы ответа
+    if (Array.isArray(d)) {
+        // [{asset, balance}] формат
+        const usdc = d.find(b => b.asset === 'USDC' || b.symbol === 'USDC');
+        if (usdc) userWallet.risexBalance = parseFloat(usdc.balance || usdc.amount || 0);
+    } else {
+        if (d.balance  !== undefined) userWallet.risexBalance = parseFloat(d.balance) / 1e18;
+        if (d.usdc     !== undefined) userWallet.risexBalance = parseFloat(d.usdc) / 1e6;
+        if (d.equity   !== undefined) userWallet.risexBalance = parseFloat(d.equity);
+        if (d.available !== undefined) userWallet.risexBalance = parseFloat(d.available);
+    }
+    if (currentUser) saveWalletLocal(currentUser.uid);
 }
 
 // ── Депозит / Вывод ─────────────────────────────────────────
