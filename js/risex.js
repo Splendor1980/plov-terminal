@@ -227,10 +227,7 @@ function _connectWS(marketId) {
                 method: 'subscribe',
                 params: { channel: 'trades', market_ids: [marketId] }
             }));
-            _ws.send(JSON.stringify({
-                method: 'subscribe',
-                params: { channel: 'ticker', market_ids: [marketId] }
-            }));
+            // ticker канал не поддерживается — пропускаем
 
             if (isLoggedIn && userWallet.address) {
                 _ws.send(JSON.stringify({
@@ -481,120 +478,218 @@ async function placeOrder(side, amountUsdc, leverage, uid) {
         addToLog(t('login_required'), 'error'); return false;
     }
 
-    // Разблокируем подписант
     const ok = await unlockSigner(uid);
     if (!ok) return false;
 
-    // Регистрируем если ещё нет
     if (!userWallet.signerRegistered) {
         await registerSigner(uid);
     }
 
     try {
-        addToLog(`🚀 ${side} ${amountUsdc} USDC ×${leverage}...`, 'pending');
+        addToLog(t('order_pending'), 'pending');
 
-        // Получаем лучшую цену из стакана
         const price = lastPrice || await fetchMarkPrice();
         if (!price) { addToLog('❌ Не удалось получить цену', 'error'); return false; }
 
-        // Для рыночного ордера — скользим на 0.5%
-        const execPrice = side === 'LONG'
-            ? price * 1.005
-            : price * 0.995;
+        // ── Константы ────────────────────────────────────────
+        const ACTION_PLACE_ORDER_HASH = ethers.keccak256(
+            ethers.toUtf8Bytes('RISE_PERPS_PLACE_ORDER_V1')
+        );
+        const V3_FLAG_PERMIT = 0x01;
 
-        // Размер позиции = (amount * leverage) / price
+        // ── Параметры ордера ─────────────────────────────────
+        const marketSide    = side === 'LONG' ? 0 : 1;
+        const orderType     = 1;   // Market
+        const timeInForce   = 3;   // ImmediateOrCancel
+        const postOnly      = false;
+        const reduceOnly    = false;
+        const stpMode       = 1;   // ExpireMaker
+        const builderId     = 0;
+        const clientOrderId = 0n;
+        const ttlUnits      = 0;
+
+        // Конвертируем размер в size_steps
+        // 1 step = 0.000001 BTC (стандарт для BTC-PERP)
         const positionSize = (amountUsdc * leverage) / price;
+        const sizeSteps    = Math.floor(positionSize * 1e6);
+        const priceTicks   = 0; // 0 для market ордера
 
-        // Timestamp + expiry (28 дней для testnet)
-        const now    = Date.now();
-        const expiry = now + 28 * 24 * 60 * 60 * 1000;
+        // ── encodeOrderData (88-bit compressed) ──────────────
+        let orderFlags = 0;
+        if (marketSide & 1)   orderFlags |= 0x01;
+        if (postOnly)         orderFlags |= 0x02;
+        if (reduceOnly)       orderFlags |= 0x04;
+        orderFlags |= (stpMode    & 3) << 3;
+        orderFlags |= (orderType  & 1) << 5;
+        orderFlags |= (timeInForce & 3) << 6;
 
-        // EIP-712 подпись ордера
-        const domain = {
-            name:    'RISEx',
-            version: '1',
-            chainId: RISE_CHAIN.chainId,
-        };
-        const orderTypes = {
-            Order: [
-                { name: 'market_id',   type: 'uint32'  },
+        let orderData = 0n;
+        orderData |= BigInt(currentMarket & 0xFFFF)   << 70n;
+        orderData |= BigInt(sizeSteps & 0xFFFFFFFF)   << 38n;
+        orderData |= BigInt(priceTicks & 0xFFFFFF)    << 14n;
+        orderData |= BigInt(orderFlags & 0xFF)         << 6n;
+        orderData |= BigInt((1 & 0x1F) << 1);          // headerVersion=1
+
+        // ── computeHeaderFlags ───────────────────────────────
+        let headerFlags = V3_FLAG_PERMIT; // 0x01
+
+        // ── encodeOrder → hash ───────────────────────────────
+        const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
+            ['bytes32', 'uint8', 'uint256', 'uint16', 'uint64', 'uint16'],
+            [
+                ACTION_PLACE_ORDER_HASH,
+                headerFlags,
+                orderData,
+                builderId,
+                clientOrderId,
+                ttlUnits,
+            ]
+        );
+        const orderHash = ethers.keccak256(encoded);
+        console.log('orderHash:', orderHash);
+
+        // ── EIP-712 домен ────────────────────────────────────
+        let domain = { name: 'RISEx', version: '1', chainId: BigInt(RISE_CHAIN.chainId) };
+        try {
+            const dr = await fetch(`${RISEX_API.rest}/v1/auth/eip712-domain`);
+            if (dr.ok) {
+                const raw = await dr.json();
+                const d   = raw.data || raw;
+                domain = {
+                    name:              d.name,
+                    version:           d.version,
+                    chainId:           BigInt(d.chain_id || d.chainId),
+                    verifyingContract: d.verifying_contract || d.verifyingContract,
+                };
+            }
+        } catch {}
+
+        // ── nonceState ───────────────────────────────────────
+        let nonceAnchor      = 0;
+        let nonceBitmapIndex = 0;
+        try {
+            const nr  = await fetch(`${RISEX_API.rest}/v1/nonce-state/${userWallet.address}`);
+            if (nr.ok) {
+                const raw = await nr.json();
+                const nd  = raw.data || raw;
+                nonceAnchor      = Number(nd.nonce_anchor || 0);
+                nonceBitmapIndex = Number(nd.current_bitmap_index || 0);
+                // Если bitmap переполнен — берём следующий anchor
+                if (nonceBitmapIndex > 200) {
+                    nonceAnchor += 1;
+                    nonceBitmapIndex = 0;
+                }
+            }
+        } catch {}
+
+        // ── target (router) ──────────────────────────────────
+        const target = '0xaadde0cea454f2bcb26f46ed54c5709b7bb34a7e';
+
+        // ── deadline ─────────────────────────────────────────
+        const deadline = Math.floor(Date.now() / 1000) + 300; // 5 минут
+
+        // ── fixSignatureV ────────────────────────────────────
+        function fixSig(sig) {
+            const bytes = ethers.getBytes(sig);
+            if (bytes.length === 65 && bytes[64] < 27) bytes[64] += 27;
+            return ethers.hexlify(bytes);
+        }
+
+        // ── hexToBase64 ──────────────────────────────────────
+        function hexToBase64(hex) {
+            const bytes = ethers.getBytes(hex);
+            return btoa(String.fromCharCode(...bytes));
+        }
+
+        // ── VERIFY_WITNESS_TYPES ─────────────────────────────
+        const VERIFY_WITNESS_TYPES = {
+            VerifyWitness: [
                 { name: 'account',     type: 'address' },
-                { name: 'side',        type: 'uint8'   },
-                { name: 'quantity',    type: 'uint128'  },
-                { name: 'price',       type: 'uint128'  },
-                { name: 'order_type',  type: 'uint8'   },
-                { name: 'leverage',    type: 'uint32'  },
-                { name: 'nonce',       type: 'uint64'  },
-                { name: 'expiry',      type: 'uint64'  },
+                { name: 'target',      type: 'address' },
+                { name: 'hash',        type: 'bytes32' },
+                { name: 'nonceAnchor', type: 'uint48'  },
+                { name: 'nonceBitmap', type: 'uint8'   },
+                { name: 'deadline',    type: 'uint32'  },
             ]
         };
 
-        // Конвертируем в wei-формат (1e18)
-        const qtyWei   = BigInt(Math.floor(positionSize * 1e18));
-        const priceWei = BigInt(Math.floor(execPrice * 1e18));
+        // ── Подпись ───────────────────────────────────────────
+        const rawSig = fixSig(
+            await signer.signTypedData(domain, VERIFY_WITNESS_TYPES, {
+                account:     userWallet.address,
+                target,
+                hash:        orderHash,
+                nonceAnchor: nonceAnchor,
+                nonceBitmap: nonceBitmapIndex,
+                deadline,
+            })
+        );
+        const signatureB64 = hexToBase64(rawSig);
 
-        const orderValue = {
-            market_id:  currentMarket,
-            account:    userWallet.address,
-            side:       side === 'LONG' ? 0 : 1,
-            quantity:   qtyWei,
-            price:      priceWei,
-            order_type: 1,   // Market
-            leverage:   leverage,
-            nonce:      BigInt(now),
-            expiry:     BigInt(expiry),
+        // ── Тело запроса ─────────────────────────────────────
+        const body = {
+            market_id:        currentMarket,
+            side:             marketSide,
+            order_type:       orderType,
+            price_ticks:      priceTicks,
+            size_steps:       sizeSteps,
+            time_in_force:    timeInForce,
+            post_only:        postOnly,
+            reduce_only:      reduceOnly,
+            stp_mode:         stpMode,
+            ttl_units:        ttlUnits,
+            client_order_id:  '0',
+            builder_id:       builderId,
+            permit: {
+                account:           userWallet.address,
+                signer:            userWallet.address,
+                target,
+                hash:              orderHash,
+                nonce_anchor:      nonceAnchor,
+                nonce_bitmap_index: nonceBitmapIndex,
+                deadline,
+                signature:         signatureB64,
+            }
         };
+        console.log('order body:', JSON.stringify(body));
 
-        const signature = await signer.signTypedData(domain, orderTypes, orderValue);
-
-        // Отправляем ордер
         const res = await fetch(`${RISEX_API.rest}/v1/orders/place`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                market_id:  currentMarket,
-                account:    userWallet.address,
-                side:       side === 'LONG' ? 0 : 1,
-                quantity:   qtyWei.toString(),
-                price:      priceWei.toString(),
-                order_type: 1,
-                leverage:   leverage,
-                nonce:      now.toString(),
-                expiry:     expiry.toString(),
-                signature
-            })
+            body:    JSON.stringify(body)
         });
 
         const result = await res.json().catch(() => ({}));
+        console.log('order response:', res.status, result);
 
         if (res.ok) {
-            const orderId = result.order_id || result.id || '?';
-            addToLog(`✅ ${side} исполнен! ID: ${orderId}`, 'success');
-            addToLog(`💰 ${amountUsdc} USDC × ${leverage}x = ~${(positionSize).toFixed(6)} BTC`, 'meta');
+            const orderId = result.data?.order_id || result.order_id || '?';
+            addToLog(`${t('order_success')} ID: ${orderId}`, 'success');
+            addToLog(`💰 ${amountUsdc} USDC × ${leverage}x`, 'meta');
 
-            // Обновляем локальную позицию
             position = {
                 side:       side.toLowerCase(),
                 size:       positionSize,
                 entryPrice: price,
-                leverage:   leverage,
+                leverage,
                 orderId
             };
             updatePositionUI(position);
-            await fetchBalance();
             saveStats(side, amountUsdc * leverage, true);
             return true;
         } else {
-            const msg = result.message || result.error || result.detail || JSON.stringify(result);
-            addToLog(`❌ Ошибка ордера: ${String(msg).slice(0, 80)}`, 'error');
+            const msg = result.error?.message || result.message || JSON.stringify(result);
+            addToLog(`${t('order_error')} ${String(msg).slice(0, 100)}`, 'error');
             return false;
         }
 
     } catch (e) {
-        addToLog('❌ ' + (e.message || e).toString().slice(0, 80), 'error');
+        addToLog(`${t('order_error')} ${e.message.slice(0, 100)}`, 'error');
+        console.error('placeOrder exception:', e);
         return false;
     }
 }
+
 
 // ── Закрытие позиции (reduce-only) ──────────────────────────
 
