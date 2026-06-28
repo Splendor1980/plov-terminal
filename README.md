@@ -2,8 +2,6 @@
 
 **Professional Scalping Terminal for RISEx (RISE Chain)** — fast, convenient, and purpose-built for high-frequency scalping.
 
-![PLOV Terminal Screenshot](https://github.com/Splendor1980/plov-terminal/blob/main/screenshot.png)
-
 ## ✨ Key Features
 
 - **Hotkeys** for ultra-fast trading (B = Buy, S = Sell, Esc = quick clear, etc.)
@@ -11,7 +9,6 @@
 - **Deep real-time order book** with live updates
 - **Multi-language support**: English + Russian + Chinese
 - **Firebase Authentication** (Google login)
-- **Secure wallet management** and safety tools
 - **Quick settings** for leverage, position size, and trading mode
 - Full support for **mainnet** and **testnet**
 
