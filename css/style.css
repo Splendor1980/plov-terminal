@@ -695,3 +695,64 @@ html, body {
     text-align: center;
     padding:    12px 0;
 }
+
+/* ============================================================
+   ВКЛАДКИ ЛОГ / МОИ СДЕЛКИ
+   ============================================================ */
+
+.log-tabs {
+    display:     flex;
+    gap:         4px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+}
+
+.log-tab {
+    padding:       4px 12px;
+    background:    transparent;
+    border:        1px solid var(--border);
+    border-radius: 6px;
+    color:         var(--text3);
+    font-size:     11px;
+    cursor:        pointer;
+    transition:    all 0.15s;
+}
+
+.log-tab:hover  { color: var(--text1); border-color: var(--accent); }
+.log-tab.active {
+    color:        var(--accent);
+    border-color: var(--accent);
+    background:   rgba(0,255,157,0.06);
+}
+
+.log-pane { height: 160px; overflow: hidden; }
+
+.my-trades-header-inline {
+    display:               grid;
+    grid-template-columns: 55px 80px 80px 45px 70px 1fr;
+    font-size:             10px;
+    color:                 var(--text3);
+    text-transform:        uppercase;
+    letter-spacing:        0.5px;
+    padding:               4px 2px;
+    border-bottom:         1px solid var(--border);
+    margin-bottom:         4px;
+}
+
+.my-trades-list-inline {
+    height:         130px;
+    overflow-y:     auto;
+    scrollbar-width: thin;
+}
+
+.my-trade-row {
+    display:               grid;
+    grid-template-columns: 55px 80px 80px 45px 70px 1fr;
+    font-size:             11px;
+    padding:               4px 2px;
+    border-bottom:         1px solid rgba(255,255,255,0.04);
+    align-items:           center;
+}
+
+.my-trade-row:hover { background: rgba(255,255,255,0.03); }
