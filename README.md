@@ -15,9 +15,8 @@
 ## 🚀 Quick Start
 
 1. Visit [plov-terminal.vercel.app](https://plov-terminal.vercel.app)
-2. Connect your wallet
-3. Log in with Google (via Firebase)
-4. Start scalping!
+2. Log in with Google (via Firebase)
+3. Start scalping!
 
 ## 🔥 Why Choose PLOV?
 
