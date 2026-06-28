@@ -68,9 +68,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             if (!userWallet.address) return;
 
             updateBalanceUI();
-            registerSigner(user.uid).catch(() => {});
-            await fetchBalance();
-            fetchPosition().catch(() => {});
+            // registerSigner не нужен в режиме симуляции
             loadStats().catch(() => {});
 
             startOrderBook(currentMarket);
