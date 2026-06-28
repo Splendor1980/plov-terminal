@@ -52,5 +52,5 @@ We actively listen to the community — your suggestions via GitHub Issues are v
 ## ⭐ Support the Project
 
 If PLOV helps you trade better — please star the repository ⭐ and share it with fellow traders!
-
+https://discord.gg/e6KWQDtdEk
 ---
