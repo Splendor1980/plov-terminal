@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://api.rise.trade/:path*"
+      "destination": "https://api.testnet.rise.trade/:path*"
     }
   ],
   "headers": [
