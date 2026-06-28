@@ -17,12 +17,17 @@ async function loadSystemConfig() {
             const cfg = await cfgRes.json();
             const c   = cfg.data || cfg;
             console.log('system/config:', JSON.stringify(c).slice(0, 400));
-            if (c.usdc_address     || c.usdc)    RISEX_CONTRACTS.usdc         = c.usdc_address || c.usdc;
-            if (c.router)                         RISEX_CONTRACTS.router       = c.router;
-            if (c.orders_manager)                 RISEX_CONTRACTS.ordersManager = c.orders_manager;
-            if (c.collateral_manager)             RISEX_CONTRACTS.collateral   = c.collateral_manager;
-            if (c.perps_manager)                  RISEX_CONTRACTS.perpsManager  = c.perps_manager;
-            if (c.authorization)                  RISEX_CONTRACTS.authorization = c.authorization;
+
+            // Адреса могут быть в c.addresses или напрямую в c
+            const addr = c.addresses || c;
+            const usdc = c.addresses?.usdc || c.usdc_address || c.usdc;
+
+            if (usdc)                   RISEX_CONTRACTS.usdc         = usdc;
+            if (addr.router)            RISEX_CONTRACTS.router       = addr.router;
+            if (addr.orders_manager)    RISEX_CONTRACTS.ordersManager = addr.orders_manager;
+            if (addr.collateral_manager) RISEX_CONTRACTS.collateral  = addr.collateral_manager;
+            if (addr.perps_manager)     RISEX_CONTRACTS.perpsManager  = addr.perps_manager;
+            if (addr.auth)              RISEX_CONTRACTS.authorization = addr.auth;
         }
 
         // markets — список маркетов
@@ -298,14 +303,16 @@ function _handleWsMessage(msg) {
     if (channel === 'orderbook' || channel === 'order_book') {
         renderOrderBook(data);
     } else if (channel === 'trades' || channel === 'trade') {
-        // Логируем первое сообщение для диагностики
-        if (!window._tradesLogged) {
-            console.log('trades msg:', JSON.stringify(msg).slice(0, 400));
-            window._tradesLogged = true;
+        // data — один объект сделки (не массив)
+        // Формат: {id, maker_order_id, taker_order_id, price, quantity, taker_side, ...}
+        const d = msg.data || data;
+        if (d && d.id) {
+            renderTrades([d]);  // оборачиваем в массив
+        } else if (Array.isArray(d)) {
+            renderTrades(d);
+        } else if (d && d.trades) {
+            renderTrades(d.trades);
         }
-        const tradesList = data.trades || data.fills || data.data?.trades
-                        || (Array.isArray(data) ? data : []);
-        if (tradesList.length) renderTrades(tradesList);
     } else if (channel === 'ticker' || channel === 'mark_price') {
         updateTickerUI(data);
     } else if (channel === 'positions' || channel === 'position') {
