@@ -5,16 +5,78 @@
 let isSubmitting = false;
 
 let position = {
-    side:       null,   // 'long' | 'short'
-    size:       0,      // в BTC
+    side:       null,
+    size:       0,
     entryPrice: 0,
-    leverage:   1
+    leverage:   1,
+    margin:     0
 };
 
 let stats = {
     trades: 0, wins: 0, volume: 0,
     best: 0, worst: 0
 };
+
+// История своих сделок (симуляция)
+let myTrades = [];
+
+function addMyTrade(side, price, size, leverage, pnl = null) {
+    const trade = {
+        side,
+        price,
+        size,
+        leverage,
+        pnl,
+        time: new Date()
+    };
+    myTrades.unshift(trade);
+    if (myTrades.length > 100) myTrades.pop();
+    renderMyTrades();
+    // Сохраняем
+    if (currentUser) {
+        localStorage.setItem(`plov_trades_${currentUser.uid}`,
+            JSON.stringify(myTrades.slice(0, 50)));
+    }
+}
+
+function loadMyTrades() {
+    if (!currentUser) return;
+    try {
+        const saved = localStorage.getItem(`plov_trades_${currentUser.uid}`);
+        if (saved) {
+            myTrades = JSON.parse(saved).map(t => ({
+                ...t, time: new Date(t.time)
+            }));
+            renderMyTrades();
+        }
+    } catch {}
+}
+
+function renderMyTrades() {
+    const el = document.getElementById('my-trades-list');
+    if (!el) return;
+    if (!myTrades.length) {
+        el.innerHTML = '<div class="no-trades">Нет сделок</div>';
+        return;
+    }
+    el.innerHTML = myTrades.slice(0, 20).map(t => {
+        const pnlStr = t.pnl !== null
+            ? `<span class="${t.pnl >= 0 ? 'green' : 'red'}">${t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(2)}</span>`
+            : '';
+        const time = t.time instanceof Date
+            ? t.time.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+            : '';
+        const sideClass = t.side === 'LONG' ? 'green' : 'red';
+        return `<div class="my-trade-row">
+            <span class="mt-side ${sideClass}">${t.side}</span>
+            <span class="mt-price">${t.price.toFixed(1)}</span>
+            <span class="mt-size">${t.size.toFixed(5)}</span>
+            <span class="mt-lev">×${t.leverage}</span>
+            <span class="mt-pnl">${pnlStr}</span>
+            <span class="mt-time">${time}</span>
+        </div>`;
+    }).join('');
+}
 
 // ── Кнопки BUY / SELL ────────────────────────────────────────
 
