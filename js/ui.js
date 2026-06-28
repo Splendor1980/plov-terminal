@@ -202,6 +202,13 @@ function initUI() {
     loadTheme();
 }
 
+function switchLogTab(tab) {
+    document.getElementById('pane-log').style.display      = tab === 'log'      ? 'block' : 'none';
+    document.getElementById('pane-mytrades').style.display = tab === 'mytrades' ? 'block' : 'none';
+    document.getElementById('tab-log').classList.toggle('active',      tab === 'log');
+    document.getElementById('tab-mytrades').classList.toggle('active', tab === 'mytrades');
+}
+window.switchLogTab  = switchLogTab;
 window.toggleTheme   = toggleTheme;
 window.showToast     = showToast;
 window.addToLog      = addToLog;
