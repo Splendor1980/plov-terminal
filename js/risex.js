@@ -298,7 +298,10 @@ function _handleWsMessage(msg) {
     if (channel === 'orderbook' || channel === 'order_book') {
         renderOrderBook(data);
     } else if (channel === 'trades' || channel === 'trade') {
-        renderTrades(data.trades || data.fills || (Array.isArray(data) ? data : []));
+        // data может быть объектом с trades или массивом напрямую
+        const tradesList = data.trades || data.fills || data.data?.trades
+                        || (Array.isArray(data) ? data : []);
+        if (tradesList.length) renderTrades(tradesList);
     } else if (channel === 'ticker' || channel === 'mark_price') {
         updateTickerUI(data);
     } else if (channel === 'positions' || channel === 'position') {
@@ -446,14 +449,18 @@ function renderTrades(trades) {
 
     const norm = v => { const n = parseFloat(v); return n > 1e15 ? n / 1e18 : n; };
 
-    // Добавляем только новые сделки сверху
-    trades.slice(0, 5).forEach(trade => {
+    trades.slice(0, 10).forEach(trade => {
         const price = norm(trade.price);
         const size  = parseFloat(trade.quantity || trade.size || 0);
-        const side  = (trade.side === 0 || trade.side === 'buy' || trade.taker_side === 0)
-                      ? 'buy' : 'sell';
-        const time  = trade.timestamp
-            ? new Date(trade.timestamp).toLocaleTimeString('ru-RU',
+        if (!price || !size) return;
+
+        // taker_side: 0=buy(Long), 1=sell(Short)
+        const side = (trade.taker_side === 0 || trade.side === 0 || trade.side === 'buy')
+                   ? 'buy' : 'sell';
+
+        const ts   = trade.timestamp || trade.created_at || trade.time;
+        const time = ts
+            ? new Date(ts).toLocaleTimeString('ru-RU',
                 { hour: '2-digit', minute: '2-digit', second: '2-digit' })
             : new Date().toLocaleTimeString('ru-RU',
                 { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -461,14 +468,13 @@ function renderTrades(trades) {
         const row = document.createElement('div');
         row.className = `trade-row ${side}`;
         row.innerHTML = `
-            <span class="t-price">${price.toFixed(1)}</span>
+            <span class="t-price ${side}">${price.toFixed(1)}</span>
             <span class="t-size">${size.toFixed(4)}</span>
             <span class="t-time">${time}</span>`;
         el.prepend(row);
     });
 
-    // Оставляем только последние 30
-    while (el.children.length > 30) el.removeChild(el.lastChild);
+    while (el.children.length > 50) el.removeChild(el.lastChild);
 }
 
 function updateTickerUI(data) {
@@ -534,6 +540,9 @@ async function placeOrder(side, amountUsdc, leverage, uid) {
 
     updatePositionUI(position);
     saveStats(side, amountUsdc * leverage, true);
+    if (typeof addMyTrade === 'function') {
+        addMyTrade(side, price, positionSize, leverage, null);
+    }
     return true;
 }
 
@@ -566,6 +575,10 @@ async function closePosition() {
     addToLog(`✅ Позиция закрыта. PnL: ${pnlStr} USDC`, win ? 'success' : 'error');
 
     saveStats(position.side.toUpperCase(), position.size * price, win);
+
+    if (typeof addMyTrade === 'function') {
+        addMyTrade('CLOSE ' + position.side.toUpperCase(), price, position.size, position.leverage, pnl);
+    }
 
     position = { side: null, size: 0, entryPrice: 0, leverage: 1, margin: 0 };
     updatePositionUI(null);
