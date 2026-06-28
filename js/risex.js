@@ -298,7 +298,11 @@ function _handleWsMessage(msg) {
     if (channel === 'orderbook' || channel === 'order_book') {
         renderOrderBook(data);
     } else if (channel === 'trades' || channel === 'trade') {
-        // data может быть объектом с trades или массивом напрямую
+        // Логируем первое сообщение для диагностики
+        if (!window._tradesLogged) {
+            console.log('trades msg:', JSON.stringify(msg).slice(0, 400));
+            window._tradesLogged = true;
+        }
         const tradesList = data.trades || data.fills || data.data?.trades
                         || (Array.isArray(data) ? data : []);
         if (tradesList.length) renderTrades(tradesList);
