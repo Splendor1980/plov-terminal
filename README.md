@@ -30,18 +30,12 @@
 - Strong support for Russian and Chinese speaking communities
 - Actively developed with regular updates
 
-## 📸 Screenshots
-
-<!-- Add 3-4 screenshots here: order book, hotkeys panel, trading interface, settings -->
-
 ## 🛠 Tech Stack
 
 - HTML + CSS + Vanilla JavaScript
 - Firebase (Auth + Firestore)
 - RISEx API (testnet & mainnet)
 - Hosted on Vercel
-
-## 📍 Roadmap
 
 ### Planned & Requested Features (based on user feedback)
 
