@@ -271,4 +271,7 @@ window.updatePositionUI = updatePositionUI;
 window.updatePnL        = updatePnL;
 window.updateStatsUI    = updateStatsUI;
 window.loadStats        = loadStats;
+window.loadMyTrades     = loadMyTrades;
+window.renderMyTrades   = renderMyTrades;
+window.addMyTrade       = addMyTrade;
 console.log('%cTrading loaded', 'color:#00ff9d');
