@@ -12,9 +12,9 @@ const firebaseConfig = {
 };
 
 const RISE_CHAIN = {
-    chainId:  4153,
-    rpcUrl:   "https://mainnet.riselabs.xyz",
-    explorer: "https://explorer.riselabs.xyz"
+    chainId:  11155931,
+    rpcUrl:   "https://testnet.riselabs.xyz",
+    explorer: "https://explorer.testnet.riselabs.xyz"
 };
 
 // REST API — через Vercel proxy (решает CORS)
@@ -27,7 +27,7 @@ const RISEX_API = {
     rest: IS_LOCAL
         ? "https://api.testnet.rise.trade"
         : "/api",
-    ws: "wss://ws.rise.trade/ws"
+    ws: "wss://ws.testnet.rise.trade/ws"
 };
 
 // Загружается из /v1/system/config при старте
