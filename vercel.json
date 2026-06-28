@@ -4,6 +4,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://api.testnet.rise.trade/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
