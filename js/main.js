@@ -76,6 +76,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             loadStats().catch(() => {});
 
             // Стакан уже запущен до входа
+            if (typeof loadMyTrades === 'function') loadMyTrades();
             addToLog(t('hotkeys_hint'), 'meta');
 
             // Показываем пузырь при первом входе
