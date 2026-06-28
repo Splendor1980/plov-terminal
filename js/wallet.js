@@ -215,21 +215,7 @@ async function claimFaucet(address, uid) {
 // ── Баланс ───────────────────────────────────────────────────
 
 async function fetchBalance() {
-    if (!userWallet.address) return;
-    try {
-        const res = await fetch(
-            `${RISEX_API.rest}/v1/account/cross-margin-balance?account=${userWallet.address}`
-        );
-        if (!res.ok) {
-            console.log('balance status:', res.status);
-            return;
-        }
-        const data = await res.json();
-        console.log('balance response:', JSON.stringify(data).slice(0, 200));
-        _parseBalance(data);
-    } catch (e) {
-        console.warn('fetchBalance error:', e.message);
-    }
+    // Симуляция — баланс хранится локально
     updateBalanceUI();
 }
 
