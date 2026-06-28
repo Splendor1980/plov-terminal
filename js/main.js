@@ -54,6 +54,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     // 6. Конфиг RISEx
     await loadSystemConfig();
 
+    // Стакан и цена публичные — запускаем сразу без авторизации
+    startOrderBook(currentMarket);
+    startPriceFeed();
+
     // 7. Auth listener
     fbAuth.onAuthStateChanged(async (user) => {
         if (user) {
@@ -71,9 +75,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             // registerSigner не нужен в режиме симуляции
             loadStats().catch(() => {});
 
-            startOrderBook(currentMarket);
-            startPriceFeed();
-
+            // Стакан уже запущен до входа
             addToLog(t('hotkeys_hint'), 'meta');
 
             // Показываем пузырь при первом входе
