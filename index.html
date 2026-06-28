@@ -164,9 +164,27 @@
             <kbd>B</kbd> LONG &nbsp; <kbd>S</kbd> SHORT &nbsp; <kbd>Esc</kbd> Сброс
         </div>
         <div class="log-wrap">
-            <div class="panel-title">📋 Лог</div>
-            <div class="trade-log" id="trade-log">
-                <div class="log-line muted">⏳ Загрузка...</div>
+            <div class="log-tabs">
+                <button class="log-tab active" id="tab-log" onclick="switchLogTab('log')">📋 Лог</button>
+                <button class="log-tab" id="tab-mytrades" onclick="switchLogTab('mytrades')">💼 Мои сделки</button>
+            </div>
+            <div class="log-pane" id="pane-log">
+                <div class="trade-log" id="trade-log">
+                    <div class="log-line muted">⏳ Загрузка...</div>
+                </div>
+            </div>
+            <div class="log-pane" id="pane-mytrades" style="display:none">
+                <div class="my-trades-header-inline">
+                    <span>Сторона</span>
+                    <span>Цена</span>
+                    <span>Размер</span>
+                    <span>Плечо</span>
+                    <span>PnL</span>
+                    <span>Время</span>
+                </div>
+                <div class="my-trades-list-inline" id="my-trades-list">
+                    <div class="no-trades muted">Нет сделок</div>
+                </div>
             </div>
         </div>
     </div>
@@ -207,18 +225,7 @@
             <div class="pos-row"><span class="pos-label">Худшая</span><span class="pos-val red" id="stat-worst">---</span></div>
         </div>
 
-        <div class="section">
-            <div class="section-title">📋 Мои сделки</div>
-            <div class="my-trades-header">
-                <span>Сторона</span>
-                <span>Цена</span>
-                <span>Размер</span>
-                <span>PnL</span>
-            </div>
-            <div class="my-trades-list" id="my-trades-list">
-                <div class="no-trades muted">Нет сделок</div>
-            </div>
-        </div>
+
     </div>
 </div>
 
