@@ -119,6 +119,15 @@ const LANGUAGES = {
         tab_mytrades:        '💼 Мои сделки',
         logout_done:         '👋 Вы вышли из аккаунта',
         cors_warning:        'ℹ️ Localhost: API недоступен, стакан откроется на Vercel',
+        col_side:            'Сторона',
+        col_price:           'Цена',
+        col_size:            'Размер',
+        col_lev:             'Плечо',
+        col_pnl:             'PnL',
+        col_time:            'Время',
+        col_qty:             'Кол-во',
+        ob_title:            '📊 Стакан',
+        trades_left:         '⚡ Сделки',
         new_device_warning:  '⚠️ Вход с нового устройства — проверьте настройки безопасности',
     },
 
@@ -229,6 +238,15 @@ const LANGUAGES = {
         tab_mytrades:        '💼 My trades',
         logout_done:         '👋 Logged out',
         cors_warning:        'ℹ️ Localhost: API unavailable, orderbook will work on Vercel',
+        col_side:            'Side',
+        col_price:           'Price',
+        col_size:            'Size',
+        col_lev:             'Lev',
+        col_pnl:             'PnL',
+        col_time:            'Time',
+        col_qty:             'Qty',
+        ob_title:            '📊 Order Book',
+        trades_left:         '⚡ Trades',
         new_device_warning:  '⚠️ New device detected — check security settings',
     },
 
@@ -339,6 +357,15 @@ const LANGUAGES = {
         tab_mytrades:        '💼 我的交易',
         logout_done:         '👋 已退出',
         cors_warning:        'ℹ️ 本地环境：API 不可用，订单簿将在 Vercel 上运行',
+        col_side:            '方向',
+        col_price:           '价格',
+        col_size:            '规模',
+        col_lev:             '杠杆',
+        col_pnl:             '盈亏',
+        col_time:            '时间',
+        col_qty:             '数量',
+        ob_title:            '📊 订单簿',
+        trades_left:         '⚡ 成交',
         new_device_warning:  '⚠️ 检测到新设备 — 请检查安全设置',
     }
 };
@@ -454,9 +481,23 @@ function setLanguage(lang) {
     const tabLog      = document.getElementById('tab-log');
     const tabTrades   = document.getElementById('tab-trades');
     const tabMytrades = document.getElementById('tab-mytrades');
-    if (tabLog)      tabLog.innerHTML      = t('tab_log');
-    if (tabTrades)   tabTrades.innerHTML   = t('tab_trades');
-    if (tabMytrades) tabMytrades.innerHTML = t('tab_mytrades');
+    if (tabLog)      tabLog.textContent      = t('tab_log');
+    if (tabTrades)   tabTrades.textContent   = t('tab_trades');
+    if (tabMytrades) tabMytrades.textContent = t('tab_mytrades');
+
+    // Заголовки таблицы "Мои сделки"
+    const myTradesHeaders = document.querySelectorAll('#pane-mytrades .my-trades-header-inline span');
+    const myKeys = ['col_side','col_price','col_size','col_lev','col_pnl','col_time'];
+    myTradesHeaders.forEach((el, i) => { if (myKeys[i]) el.textContent = t(myKeys[i]); });
+
+    // Заголовки таблицы "Сделки"
+    const tradesHeaders = document.querySelectorAll('#pane-trades .my-trades-header-inline span');
+    const tradeKeys = ['col_price','col_qty','col_time'];
+    tradesHeaders.forEach((el, i) => { if (tradeKeys[i]) el.textContent = t(tradeKeys[i]); });
+
+    // Стакан заголовок
+    const obTitle = document.querySelector('.panel-left .panel-title');
+    if (obTitle) obTitle.innerHTML = t('ob_title') + ' <span class="badge-live" id="ob-live">LIVE</span>';
 
     // Режимы торговли
     const modePerp = document.querySelector('.mode-tab[data-mode="perp"]');
