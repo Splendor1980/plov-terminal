@@ -26,7 +26,7 @@
             <button class="lang-btn" data-lang="en" onclick="setLanguage('en')">EN</button>
             <button class="lang-btn" data-lang="zh" onclick="setLanguage('zh')">中文</button>
         </div>
-        <span class="status-badge offline" id="status-badge">● Офлайн</span>
+        <span class="status-badge offline" id="status-badge">● Offline</span>
         <button class="btn-icon" id="theme-toggle" onclick="toggleTheme()">☀️</button>
 
         <!-- Шестерёнка + пузырь -->
@@ -41,22 +41,22 @@
 
             <!-- Панель настроек -->
             <div class="settings-panel" id="settings-panel">
-                <div class="settings-title">⚙️ Настройки</div>
+                <div class="settings-title">⚙️ Settings</div>
 
                 <div class="security-section">
-                    <div class="security-section-title">🔒 Безопасность</div>
+                    <div class="security-section-title">🔒 Security</div>
                     <button class="sec-btn active" id="sec-simple" onclick="setSecurityMode('simple')">
                         <span class="sec-icon">🔓</span>
                         <div class="sec-text">
-                            <span class="sec-label">Минимальная</span>
-                            <span class="sec-desc">Вход без PIN. Ключ хранится в браузере.</span>
+                            <span class="sec-label">Basic</span>
+                            <span class="sec-desc">No PIN. Key stored in browser.</span>
                         </div>
                     </button>
                     <button class="sec-btn" id="sec-advanced" onclick="setSecurityMode('advanced')">
                         <span class="sec-icon">🔐</span>
                         <div class="sec-text">
-                            <span class="sec-label">Максимальная</span>
-                            <span class="sec-desc">PIN-код + защита при входе с нового устройства.</span>
+                            <span class="sec-label">Advanced</span>
+                            <span class="sec-desc">PIN + new device protection.</span>
                         </div>
                     </button>
                 </div>
@@ -64,7 +64,7 @@
                 <div class="settings-divider"></div>
 
                 <div class="settings-language">
-                    <span class="security-section-title">🌐 Язык</span>
+                    <span class="security-section-title">🌐 Language</span>
                     <div class="lang-selector-panel">
                         <button class="lang-btn active" data-lang="ru" onclick="setLanguage('ru');closeSettings()">RU</button>
                         <button class="lang-btn" data-lang="en" onclick="setLanguage('en');closeSettings()">EN</button>
@@ -74,11 +74,11 @@
 
                 <div class="settings-divider"></div>
 
-                <button class="btn-help" id="btn-show-bubble" onclick="showBubbleManual()">❓ Справка</button>
+                <button class="btn-help" id="btn-show-bubble" onclick="showBubbleManual()">❓ Help</button>
             </div>
         </div>
 
-        <button class="btn-auth" id="btn-auth" onclick="handleAuth()">🔑 Войти</button>
+        <button class="btn-auth" id="btn-auth" onclick="handleAuth()">🔑 Sign in</button>
     </div>
 </div>
 
@@ -87,17 +87,22 @@
 
     <!-- LEFT: Order Book -->
     <div class="panel panel-left">
-        <div class="panel-title">📊 Стакан <span class="badge-live" id="ob-live">LIVE</span></div>
+        <div class="panel-title">📊 Order Book <span class="badge-live" id="ob-live">LIVE</span></div>
         <div class="ob-header">
-            <span id="ob-price-label">Цена</span>
-            <span id="ob-vol-label">Кол-во</span>
-            <span id="ob-total-label">Сумма</span>
+            <span id="ob-price-label">Price</span>
+            <span id="ob-vol-label">Size</span>
+            <span id="ob-total-label">Total</span>
         </div>
         <div class="ob-asks" id="asks-container"><div class="ob-placeholder">Загрузка...</div></div>
-        <div class="ob-spread"><span id="spread-label">Спред: </span><span id="spread-value">---</span></div>
+        <div class="ob-spread"><span id="spread-label">Spread: </span><span id="spread-value">---</span></div>
         <div class="ob-bids" id="bids-container"><div class="ob-placeholder">Загрузка...</div></div>
-        <div class="panel-title" style="margin-top:8px;opacity:0.4">⚡ Сделки → центр</div>
-        <div class="trades-list" id="trades-container" style="display:none"></div>
+        <div class="panel-title" style="margin-top:8px">⚡ Trades</div>
+        <div class="ob-header">
+            <span id="t-price-label">Price</span>
+            <span id="t-vol-label">Size</span>
+            <span id="t-time-label">Time</span>
+        </div>
+        <div class="trades-list" id="trades-container"></div>
     </div>
 
     <!-- CENTER -->
@@ -120,11 +125,11 @@
             </div>
         </div>
         <div class="mode-tabs">
-            <button class="mode-tab active" data-mode="perp" onclick="setMode('perp')">Перп · RISEx</button>
-            <button class="mode-tab" data-mode="spot" onclick="setMode('spot')">Спот · Helios</button>
+            <button class="mode-tab active" data-mode="perp" onclick="setMode('perp')">Perp · RISEx</button>
+            <button class="mode-tab" data-mode="spot" onclick="setMode('spot')">Spot · Helios</button>
         </div>
         <div class="leverage-row" id="leverage-row">
-            <span class="lev-label">Плечо:</span>
+            <span class="lev-label">Leverage:</span>
             <div class="lev-btns">
                 <button class="lev-btn active" data-lev="1"  onclick="setLeverage(1)">1×</button>
                 <button class="lev-btn"         data-lev="2"  onclick="setLeverage(2)">2×</button>
@@ -135,7 +140,7 @@
         </div>
         <div class="amount-row">
             <div class="amount-input-wrap">
-                <input type="number" id="amount-input" placeholder="Сумма USDC" min="0" step="1">
+                <input type="number" id="amount-input" placeholder="Total USDC" min="0" step="1">
                 <span class="amount-unit">USDC</span>
             </div>
             <div class="quick-pct">
@@ -148,40 +153,20 @@
         <div class="trade-btns">
             <button class="btn-buy" id="btn-buy" onclick="handleBuyClick()">
                 <span class="btn-label">📈 LONG</span>
-                <span class="btn-sub" id="buy-sub">Открыть лонг</span>
+                <span class="btn-sub" id="buy-sub">Open long</span>
             </button>
             <button class="btn-sell" id="btn-sell" onclick="handleSellClick()">
                 <span class="btn-label">📉 SHORT</span>
-                <span class="btn-sub" id="sell-sub">Открыть шорт</span>
+                <span class="btn-sub" id="sell-sub">Open short</span>
             </button>
         </div>
         <div class="hotkeys">
-            <kbd>B</kbd> LONG &nbsp; <kbd>S</kbd> SHORT &nbsp; <kbd>Esc</kbd> Сброс
+            <kbd>B</kbd> LONG &nbsp; <kbd>S</kbd> SHORT &nbsp; <kbd>Esc</kbd> Reset
         </div>
         <div class="log-wrap">
-            <div class="log-tabs">
-                <button class="log-tab active" id="tab-log"      onclick="switchLogTab('log')">📋 Лог</button>
-                <button class="log-tab"         id="tab-trades"   onclick="switchLogTab('trades')">⚡ Сделки</button>
-                <button class="log-tab"         id="tab-mytrades" onclick="switchLogTab('mytrades')">💼 Мои сделки</button>
-            </div>
-            <div class="log-pane" id="pane-log">
-                <div class="trade-log" id="trade-log">
-                    <div class="log-line muted">⏳ Загрузка...</div>
-                </div>
-            </div>
-            <div class="log-pane" id="pane-trades" style="display:none">
-                <div class="my-trades-header-inline" id="trades-header">
-                    <span>Цена</span><span>Кол-во</span><span>Время</span>
-                </div>
-                <div class="market-trades-list" id="market-trades-list"></div>
-            </div>
-            <div class="log-pane" id="pane-mytrades" style="display:none">
-                <div class="my-trades-header-inline" id="mytrades-header">
-                    <span>Сторона</span><span>Цена</span><span>Размер</span><span>Плечо</span><span>PnL</span><span>Время</span>
-                </div>
-                <div class="my-trades-list-inline" id="my-trades-list">
-                    <div class="no-trades muted">Нет сделок</div>
-                </div>
+            <div class="panel-title">📋 Log</div>
+            <div class="trade-log" id="trade-log">
+                <div class="log-line muted">⏳ Loading...</div>
             </div>
         </div>
     </div>
@@ -189,7 +174,7 @@
     <!-- RIGHT -->
     <div class="panel panel-right">
         <div class="section">
-            <div class="section-title">💼 Кошелёк</div>
+            <div class="section-title">💼 Wallet</div>
             <div class="wallet-addr">
                 <span class="wallet-short" id="wallet-short">---</span>
                 <button class="btn-copy" onclick="copyAddress()">⧉</button>
@@ -200,29 +185,40 @@
                 <div class="bal-row"><span class="bal-label">RISEx</span><span class="bal-val green" id="bal-risex">0.00</span></div>
             </div>
             <div class="wallet-actions">
-                <button class="btn-sm btn-green" onclick="handleDeposit()">↓ Депозит</button>
-                <button class="btn-sm btn-red"   onclick="handleWithdraw()">↑ Вывод</button>
+                <button class="btn-sm btn-green" onclick="handleDeposit()">↓ Deposit</button>
+                <button class="btn-sm btn-red"   onclick="handleWithdraw()">↑ Withdraw</button>
             </div>
         </div>
         <div class="section">
-            <div class="section-title">📦 Позиция</div>
-            <div class="pos-row"><span class="pos-label">Сторона</span><span class="pos-val" id="pos-side">---</span></div>
-            <div class="pos-row"><span class="pos-label">Размер</span><span class="pos-val" id="pos-size">---</span></div>
-            <div class="pos-row"><span class="pos-label">Вход</span><span class="pos-val" id="pos-entry">---</span></div>
-            <div class="pos-row"><span class="pos-label">Ликвид.</span><span class="pos-val red" id="pos-liq">---</span></div>
+            <div class="section-title">📦 Position</div>
+            <div class="pos-row"><span class="pos-label">Side</span><span class="pos-val" id="pos-side">---</span></div>
+            <div class="pos-row"><span class="pos-label">Size</span><span class="pos-val" id="pos-size">---</span></div>
+            <div class="pos-row"><span class="pos-label">Entry</span><span class="pos-val" id="pos-entry">---</span></div>
+            <div class="pos-row"><span class="pos-label">Liq.</span><span class="pos-val red" id="pos-liq">---</span></div>
             <div class="pos-row"><span class="pos-label">PnL</span><span class="pos-val" id="pos-pnl">+0.00</span></div>
-            <button class="btn-close-pos" id="btn-close-pos" onclick="closePosition()" style="display:none">✕ Закрыть позицию</button>
+            <button class="btn-close-pos" id="btn-close-pos" onclick="closePosition()" style="display:none">✕ Close position</button>
         </div>
         <div class="section">
-            <div class="section-title">📊 Статистика</div>
-            <div class="pos-row"><span class="pos-label">Сделок</span><span class="pos-val" id="stat-trades">0</span></div>
+            <div class="section-title">📊 Statistics</div>
+            <div class="pos-row"><span class="pos-label">Trades</span><span class="pos-val" id="stat-trades">0</span></div>
             <div class="pos-row"><span class="pos-label">Winrate</span><span class="pos-val" id="stat-winrate">0%</span></div>
-            <div class="pos-row"><span class="pos-label">Объём</span><span class="pos-val" id="stat-volume">0</span></div>
-            <div class="pos-row"><span class="pos-label">Лучшая</span><span class="pos-val green" id="stat-best">---</span></div>
-            <div class="pos-row"><span class="pos-label">Худшая</span><span class="pos-val red" id="stat-worst">---</span></div>
+            <div class="pos-row"><span class="pos-label">Volume</span><span class="pos-val" id="stat-volume">0</span></div>
+            <div class="pos-row"><span class="pos-label">Best</span><span class="pos-val green" id="stat-best">---</span></div>
+            <div class="pos-row"><span class="pos-label">Worst</span><span class="pos-val red" id="stat-worst">---</span></div>
         </div>
 
-
+        <div class="section">
+            <div class="section-title">📋 Мои сделки</div>
+            <div class="my-trades-header">
+                <span>Side</span>
+                <span>Price</span>
+                <span>Size</span>
+                <span>PnL</span>
+            </div>
+            <div class="my-trades-list" id="my-trades-list">
+                <div class="no-trades muted">Нет сделок</div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -237,7 +233,7 @@
                placeholder="••••" class="pin-input" autocomplete="off">
         <div class="modal-btns">
             <button class="btn-sm btn-green" onclick="confirmPin()">OK</button>
-            <button class="btn-sm btn-red"   onclick="cancelPin()">Отмена</button>
+            <button class="btn-sm btn-red"   onclick="cancelPin()">Cancel</button>
         </div>
         <div class="pin-error" id="pin-error"></div>
     </div>

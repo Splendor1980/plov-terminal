@@ -128,6 +128,12 @@ const LANGUAGES = {
         col_qty:             'Кол-во',
         ob_title:            '📊 Стакан',
         trades_left:         '⚡ Сделки',
+        bubble_how_title:    '🚀 Как начать торговать реально:',
+        bubble_step1:        '1. Зайди на rise.trade → Settings → API Keys',
+        bubble_step2:        '2. Создай Signer Key',
+        bubble_step3:        '3. Задепозитируй USDC на свой адрес',
+        bubble_step4:        '4. Вернись в ПЛОВ — всё готово',
+        bubble_sim_note:     'Сейчас активна симуляция на реальных ценах RISEx.',
         new_device_warning:  '⚠️ Вход с нового устройства — проверьте настройки безопасности',
     },
 
@@ -247,6 +253,12 @@ const LANGUAGES = {
         col_qty:             'Qty',
         ob_title:            '📊 Order Book',
         trades_left:         '⚡ Trades',
+        bubble_how_title:    '🚀 How to start real trading:',
+        bubble_step1:        '1. Go to rise.trade → Settings → API Keys',
+        bubble_step2:        '2. Create a Signer Key',
+        bubble_step3:        '3. Deposit USDC to your address',
+        bubble_step4:        '4. Come back to PLOV — ready to trade',
+        bubble_sim_note:     'Simulation mode is active — using real RISEx prices.',
         new_device_warning:  '⚠️ New device detected — check security settings',
     },
 
@@ -366,6 +378,12 @@ const LANGUAGES = {
         col_qty:             '数量',
         ob_title:            '📊 订单簿',
         trades_left:         '⚡ 成交',
+        bubble_how_title:    '🚀 如何开始真实交易:',
+        bubble_step1:        '1. 前往 rise.trade → 设置 → API 密钥',
+        bubble_step2:        '2. 创建 Signer Key',
+        bubble_step3:        '3. 向您的地址充值 USDC',
+        bubble_step4:        '4. 返回 ПЛОВ — 准备就绪',
+        bubble_sim_note:     '当前为模拟模式 — 使用真实 RISEx 价格。',
         new_device_warning:  '⚠️ 检测到新设备 — 请检查安全设置',
     }
 };

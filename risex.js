@@ -247,7 +247,10 @@ function _connectWS(marketId) {
                 method: 'subscribe',
                 params: { channel: 'trades', market_ids: [marketId] }
             }));
-            // ticker канал не поддерживается — пропускаем
+            _ws.send(JSON.stringify({
+                method: 'subscribe',
+                params: { channel: 'ticker', market_ids: [marketId] }
+            }));
 
             if (isLoggedIn && userWallet.address) {
                 _ws.send(JSON.stringify({
@@ -314,7 +317,14 @@ function _handleWsMessage(msg) {
             renderTrades(d.trades);
         }
     } else if (channel === 'ticker' || channel === 'mark_price') {
-        updateTickerUI(data);
+        const d = msg.data || data;
+        updateTickerUI(d);
+        // Funding rate
+        if (d && d.funding_rate !== undefined) {
+            const fr    = (parseFloat(d.funding_rate) * 100).toFixed(4);
+            const frEl  = document.getElementById('funding-rate');
+            if (frEl) frEl.textContent = `FR: ${fr}%`;
+        }
     } else if (channel === 'positions' || channel === 'position') {
         if (data) updatePositionUI(data);
     } else if (channel === 'subscribed' || channel === 'pong' || channel === 'connected') {
@@ -474,11 +484,15 @@ function renderTrades(trades) {
 
         const ts   = trade.timestamp || trade.created_at || trade.time
                   || trade.block_timestamp;
-        const time = ts
-            ? new Date(Number(ts) > 1e12 ? Number(ts) / 1e6 : Number(ts) * 1000)
-                .toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            : new Date().toLocaleTimeString('ru-RU',
+        let time = new Date().toLocaleTimeString(undefined,
                 { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        if (ts) {
+            const n = Number(ts);
+            // API возвращает наносекунды (1e18 range) или миллисекунды
+            const ms = n > 1e15 ? n / 1e6 : n > 1e12 ? n : n * 1000;
+            time = new Date(ms).toLocaleTimeString(undefined,
+                { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
 
         // В центральную панель
         if (centerEl) {
