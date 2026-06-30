@@ -113,10 +113,8 @@ function updatePriceUI(price) {
     // Подзаголовки кнопок
     const buySub  = document.getElementById('buy-sub');
     const sellSub = document.getElementById('sell-sub');
-    if (currentMode === 'perp') {
-        if (buySub)  buySub.textContent  = `×${currentLeverage}`;
-        if (sellSub) sellSub.textContent = `×${currentLeverage}`;
-    }
+    if (buySub)  buySub.textContent  = `×${currentLeverage}`;
+    if (sellSub) sellSub.textContent = `×${currentLeverage}`;
 }
 
 // ── График (SVG-bars) ─────────────────────────────────────────
@@ -203,10 +201,12 @@ function initUI() {
 }
 
 function switchLogTab(tab) {
-    document.getElementById('pane-log').style.display      = tab === 'log'      ? 'block' : 'none';
-    document.getElementById('pane-mytrades').style.display = tab === 'mytrades' ? 'block' : 'none';
-    document.getElementById('tab-log').classList.toggle('active',      tab === 'log');
-    document.getElementById('tab-mytrades').classList.toggle('active', tab === 'mytrades');
+    ['log', 'trades', 'mytrades'].forEach(t => {
+        const pane = document.getElementById(`pane-${t}`);
+        const btn  = document.getElementById(`tab-${t}`);
+        if (pane) pane.style.display = t === tab ? 'block' : 'none';
+        if (btn)  btn.classList.toggle('active', t === tab);
+    });
 }
 window.switchLogTab  = switchLogTab;
 window.toggleTheme   = toggleTheme;

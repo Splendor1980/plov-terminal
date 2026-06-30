@@ -1,5 +1,5 @@
 // ============================================================
-// js/auth.js — GOOGLE AUTH (упрощённая, Firebase из main.js)
+// js/auth.js — GOOGLE AUTH (только для входа в платформу)
 // ============================================================
 
 let isLoggedIn  = false;
@@ -7,7 +7,7 @@ let currentUser = null;
 
 async function handleAuth() {
     if (!window.fbAuth) {
-        addToLog('❌ Firebase не готов, попробуйте через 2 сек', 'error');
+        addToLog('❌ Firebase not ready, try again in a sec', 'error');
         return;
     }
 
@@ -21,12 +21,11 @@ async function handleAuth() {
         btn.disabled    = true;
         btn.textContent = '⏳...';
         await fbAuth.signInWithPopup(window.fbGoogle);
-        // onAuthStateChanged в main.js подхватит
     } catch (e) {
-        let msg = e.message || 'Ошибка входа';
-        if (e.code === 'auth/popup-blocked')       msg = '❌ Попап заблокирован браузером';
-        if (e.code === 'auth/popup-closed-by-user') msg = 'ℹ️ Окно закрыто';
-        if (e.code === 'auth/cancelled-popup-request') return;
+        let msg = e.message || 'Sign in error';
+        if (e.code === 'auth/popup-blocked')        msg = '❌ Popup blocked';
+        if (e.code === 'auth/popup-closed-by-user')  msg = 'ℹ️ Popup closed';
+        if (e.code === 'auth/cancelled-popup-request') { btn.disabled = false; return; }
         addToLog(msg, 'error');
     } finally {
         btn.disabled = false;
@@ -39,18 +38,8 @@ async function doLogout() {
 
     isLoggedIn  = false;
     currentUser = null;
-    signer      = null;
-    currentPin  = null;
-    userWallet  = {
-        address: null, encryptedKey: null,
-        balances: { usdc: 0, wbtc: 0 },
-        risexBalance: 0, signerRegistered: false, faucetClaimed: false
-    };
 
-    stopPriceFeed();
-    stopOrderBook();
     updateAuthUI();
-    updateBalanceUI();
     addToLog(t('logout_done'), 'info');
 }
 
@@ -60,7 +49,7 @@ function updateAuthUI() {
     if (!btn) return;
 
     if (isLoggedIn && currentUser) {
-        const name       = currentUser.displayName || currentUser.email || '';
+        const name = currentUser.displayName || currentUser.email || '';
         btn.textContent  = t('btn_logout') + ' ' + name.slice(0, 12);
         btn.className    = 'btn-auth logout';
         btn.disabled     = false;

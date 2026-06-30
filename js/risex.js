@@ -56,19 +56,19 @@ async function loadSystemConfig() {
 // и отправляем в API — после этого API принимает ордера от этого адреса
 
 async function registerSigner(uid) {
-    if (userWallet.signerRegistered) return true;
+    if (true) return true;
 
     let attempts = 0;
-    while (!userWallet.address && attempts < 10) {
+    while (!signerAddress && attempts < 10) {
         await new Promise(r => setTimeout(r, 300));
         attempts++;
     }
-    if (!userWallet.address) return false;
+    if (!signerAddress) return false;
 
     const ok = await unlockSigner(uid);
     if (!ok) return false;
 
-    const account = userWallet.address;
+    const account = signerAddress;
 
     try {
         addToLog(t('signer_reg'), 'meta');
@@ -192,7 +192,7 @@ async function registerSigner(uid) {
         console.log('register-signer response:', regRes.status, result);
 
         if (regRes.ok || regRes.status === 409) {
-            userWallet.signerRegistered = true;
+            // signer already registered via rise.trade
             if (uid) saveWalletLocal(uid);
             addToLog(t('signer_ok'), 'success');
             return true;
@@ -247,12 +247,15 @@ function _connectWS(marketId) {
                 method: 'subscribe',
                 params: { channel: 'trades', market_ids: [marketId] }
             }));
-            // ticker канал не поддерживается — пропускаем
+            _ws.send(JSON.stringify({
+                method: 'subscribe',
+                params: { channel: 'ticker', market_ids: [marketId] }
+            }));
 
-            if (isLoggedIn && userWallet.address) {
+            if (isLoggedIn && signerAddress) {
                 _ws.send(JSON.stringify({
                     method: 'subscribe',
-                    params: { channel: 'positions', account: userWallet.address }
+                    params: { channel: 'positions', account: signerAddress }
                 }));
             }
 
@@ -314,7 +317,14 @@ function _handleWsMessage(msg) {
             renderTrades(d.trades);
         }
     } else if (channel === 'ticker' || channel === 'mark_price') {
-        updateTickerUI(data);
+        const d = msg.data || data;
+        updateTickerUI(d);
+        // Funding rate
+        if (d && d.funding_rate !== undefined) {
+            const fr    = (parseFloat(d.funding_rate) * 100).toFixed(4);
+            const frEl  = document.getElementById('funding-rate');
+            if (frEl) frEl.textContent = `FR: ${fr}%`;
+        }
     } else if (channel === 'positions' || channel === 'position') {
         if (data) updatePositionUI(data);
     } else if (channel === 'subscribed' || channel === 'pong' || channel === 'connected') {
@@ -455,37 +465,59 @@ function renderOrderBook(data) {
 }
 
 function renderTrades(trades) {
-    const el = document.getElementById('trades-container');
-    if (!el || !trades.length) return;
+    if (!trades || !trades.length) return;
 
     const norm = v => { const n = parseFloat(v); return n > 1e15 ? n / 1e18 : n; };
+
+    // Рендерим в центральную панель (вкладка Сделки)
+    const centerEl = document.getElementById('market-trades-list');
+    // И в левую панель (скрытый контейнер для совместимости)
+    const leftEl   = document.getElementById('trades-container');
 
     trades.slice(0, 10).forEach(trade => {
         const price = norm(trade.price);
         const size  = parseFloat(trade.quantity || trade.size || 0);
         if (!price || !size) return;
 
-        // taker_side: 0=buy(Long), 1=sell(Short)
         const side = (trade.taker_side === 0 || trade.side === 0 || trade.side === 'buy')
                    ? 'buy' : 'sell';
 
-        const ts   = trade.timestamp || trade.created_at || trade.time;
-        const time = ts
-            ? new Date(ts).toLocaleTimeString('ru-RU',
-                { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            : new Date().toLocaleTimeString('ru-RU',
+        const ts   = trade.timestamp || trade.created_at || trade.time
+                  || trade.block_timestamp;
+        let time = new Date().toLocaleTimeString(undefined,
                 { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        if (ts) {
+            const n = Number(ts);
+            // API возвращает наносекунды (1e18 range) или миллисекунды
+            const ms = n > 1e15 ? n / 1e6 : n > 1e12 ? n : n * 1000;
+            time = new Date(ms).toLocaleTimeString(undefined,
+                { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
 
-        const row = document.createElement('div');
-        row.className = `trade-row ${side}`;
-        row.innerHTML = `
-            <span class="t-price ${side}">${price.toFixed(1)}</span>
-            <span class="t-size">${size.toFixed(4)}</span>
-            <span class="t-time">${time}</span>`;
-        el.prepend(row);
+        // В центральную панель
+        if (centerEl) {
+            const row = document.createElement('div');
+            row.className = `market-trade-row ${side}`;
+            row.innerHTML = `
+                <span class="t-price ${side}">${price.toFixed(1)}</span>
+                <span class="t-size">${size.toFixed(4)}</span>
+                <span class="t-time">${time}</span>`;
+            centerEl.prepend(row);
+            while (centerEl.children.length > 50) centerEl.removeChild(centerEl.lastChild);
+        }
+
+        // В левую панель (скрыта)
+        if (leftEl) {
+            const row = document.createElement('div');
+            row.className = `trade-row ${side}`;
+            row.innerHTML = `
+                <span class="t-price ${side}">${price.toFixed(1)}</span>
+                <span class="t-size">${size.toFixed(4)}</span>
+                <span class="t-time">${time}</span>`;
+            leftEl.prepend(row);
+            while (leftEl.children.length > 50) leftEl.removeChild(leftEl.lastChild);
+        }
     });
-
-    while (el.children.length > 50) el.removeChild(el.lastChild);
 }
 
 function updateTickerUI(data) {
@@ -505,37 +537,30 @@ function updateTickerUI(data) {
 
 // ── Размещение ордера ────────────────────────────────────────
 
-async function placeOrder(side, amountUsdc, leverage, uid) {
-    if (!isLoggedIn || !userWallet.address) {
-        addToLog(t('login_required'), 'error'); return false;
+async function placeOrder(side, amountUsdc, leverage) {
+    if (!isSignerReady()) {
+        addToLog(t('signer_required'), 'error');
+        return false;
     }
 
     addToLog(t('order_pending'), 'pending');
 
-    // Получаем текущую цену
     const price = lastPrice || 0;
-    if (!price) { addToLog('❌ Нет данных о цене', 'error'); return false; }
+    if (!price) { addToLog('❌ No price data', 'error'); return false; }
 
-    // Небольшая задержка для реализма
     await new Promise(r => setTimeout(r, 400));
 
-    // Размер позиции
     const positionSize = (amountUsdc * leverage) / price;
 
-    // Проверяем баланс
-    const balance = userWallet.risexBalance || 0;
-    if (amountUsdc > balance) {
-        addToLog(`${t('balance_low')} ${balance.toFixed(2)})`, 'error');
+    if (amountUsdc > userBalance) {
+        addToLog(`${t('balance_low')} ${userBalance.toFixed(2)})`, 'error');
         return false;
     }
 
-    // Списываем маржу
-    userWallet.risexBalance  -= amountUsdc;
-    userWallet.balances.usdc  = Math.max(0, (userWallet.balances.usdc || 0) - amountUsdc);
-    if (uid) saveWalletLocal(uid);
+    // SIMULATION: track locally (real order placement pending RISEx API fixes)
+    userBalance -= amountUsdc;
     updateBalanceUI();
 
-    // Сохраняем позицию
     const orderId = 'SIM-' + Date.now();
     position = {
         side:       side.toLowerCase(),
@@ -546,8 +571,8 @@ async function placeOrder(side, amountUsdc, leverage, uid) {
         orderId
     };
 
-    addToLog(`✅ ${side} открыт по ${price.toFixed(1)} USDC`, 'success');
-    addToLog(`📊 Размер: ${positionSize.toFixed(6)} BTC × ${leverage}x`, 'meta');
+    addToLog(`✅ ${side} opened at ${price.toFixed(1)} USDC`, 'success');
+    addToLog(`📊 Size: ${positionSize.toFixed(6)} BTC × ${leverage}x`, 'meta');
 
     updatePositionUI(position);
     saveStats(side, amountUsdc * leverage, true);
@@ -556,6 +581,7 @@ async function placeOrder(side, amountUsdc, leverage, uid) {
     }
     return true;
 }
+
 
 
 
@@ -569,21 +595,18 @@ async function closePosition() {
     addToLog(t('close_pending'), 'pending');
     await new Promise(r => setTimeout(r, 300));
 
-    const price      = lastPrice || position.entryPrice;
-    const pnl        = position.side === 'long'
+    const price     = lastPrice || position.entryPrice;
+    const pnl       = position.side === 'long'
         ? (price - position.entryPrice) * position.size * position.leverage
         : (position.entryPrice - price) * position.size * position.leverage;
-    const returnAmt  = (position.margin || 0) + pnl;
-    const win        = pnl >= 0;
+    const returnAmt = (position.margin || 0) + pnl;
+    const win       = pnl >= 0;
 
-    // Возвращаем маржу + PnL
-    userWallet.risexBalance  = (userWallet.risexBalance || 0) + Math.max(0, returnAmt);
-    userWallet.balances.usdc = (userWallet.balances.usdc || 0) + Math.max(0, returnAmt);
-    if (currentUser) saveWalletLocal(currentUser.uid);
+    userBalance = (userBalance || 0) + Math.max(0, returnAmt);
     updateBalanceUI();
 
     const pnlStr = (pnl >= 0 ? '+' : '') + pnl.toFixed(2);
-    addToLog(`✅ Позиция закрыта. PnL: ${pnlStr} USDC`, win ? 'success' : 'error');
+    addToLog(`✅ Position closed. PnL: ${pnlStr} USDC`, win ? 'success' : 'error');
 
     saveStats(position.side.toUpperCase(), position.size * price, win);
 
@@ -594,6 +617,7 @@ async function closePosition() {
     position = { side: null, size: 0, entryPrice: 0, leverage: 1, margin: 0 };
     updatePositionUI(null);
 }
+
 
 
 // ── Получить mark price напрямую через REST ──────────────────
@@ -617,10 +641,10 @@ async function fetchMarkPrice() {
 // ── Загрузить позицию из API ─────────────────────────────────
 
 async function fetchPosition() {
-    if (!isLoggedIn || !userWallet.address) return;
+    if (!isLoggedIn || !signerAddress) return;
     try {
         const res = await fetch(
-            `${RISEX_API.rest}/v1/account/position?market_id=${currentMarket}&account=${userWallet.address}`);
+            `${RISEX_API.rest}/v1/account/position?market_id=${currentMarket}&account=${signerAddress}`);
         if (!res.ok) return;
         const data = await res.json();
         if (data && (data.size || data.quantity)) {

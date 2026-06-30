@@ -1,20 +1,19 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="dark">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ПЛОВ Scalping Terminal v2.1</title>
+    <title>PLOV Scalping Terminal v3.0</title>
     <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" defer></script>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <!-- TOP BAR -->
 <div class="top-bar">
-    <div class="logo">⚡ ПЛОВ <span class="accent">Scalping</span> <span class="version">v2.1</span></div>
+    <div class="logo">⚡ PLOV <span class="accent">Scalping</span> <span class="version">v3.0</span></div>
     <div class="top-center">
         <span class="market-label">BTC-PERP</span>
         <span class="top-price" id="top-price">---</span>
@@ -22,52 +21,28 @@
     </div>
     <div class="top-right">
         <div class="lang-selector">
-            <button class="lang-btn active" data-lang="ru" onclick="setLanguage('ru')">RU</button>
-            <button class="lang-btn" data-lang="en" onclick="setLanguage('en')">EN</button>
+            <button class="lang-btn" data-lang="ru" onclick="setLanguage('ru')">RU</button>
+            <button class="lang-btn active" data-lang="en" onclick="setLanguage('en')">EN</button>
             <button class="lang-btn" data-lang="zh" onclick="setLanguage('zh')">中文</button>
         </div>
         <span class="status-badge offline" id="status-badge">● Offline</span>
         <button class="btn-icon" id="theme-toggle" onclick="toggleTheme()">☀️</button>
 
-        <!-- Шестерёнка + пузырь -->
         <div class="settings-wrap">
             <button class="btn-icon" id="btn-settings" onclick="toggleSettings()">⚙️</button>
 
-            <!-- Речевой пузырь -->
             <div class="welcome-bubble" id="welcome-bubble">
-                <!-- Заполняется через JS -->
                 <div class="bubble-arrow"></div>
             </div>
 
-            <!-- Панель настроек -->
             <div class="settings-panel" id="settings-panel">
                 <div class="settings-title">⚙️ Settings</div>
-
-                <div class="security-section">
-                    <div class="security-section-title">🔒 Security</div>
-                    <button class="sec-btn active" id="sec-simple" onclick="setSecurityMode('simple')">
-                        <span class="sec-icon">🔓</span>
-                        <div class="sec-text">
-                            <span class="sec-label">Basic</span>
-                            <span class="sec-desc">No PIN. Key stored in browser.</span>
-                        </div>
-                    </button>
-                    <button class="sec-btn" id="sec-advanced" onclick="setSecurityMode('advanced')">
-                        <span class="sec-icon">🔐</span>
-                        <div class="sec-text">
-                            <span class="sec-label">Advanced</span>
-                            <span class="sec-desc">PIN + new device protection.</span>
-                        </div>
-                    </button>
-                </div>
-
-                <div class="settings-divider"></div>
 
                 <div class="settings-language">
                     <span class="security-section-title">🌐 Language</span>
                     <div class="lang-selector-panel">
-                        <button class="lang-btn active" data-lang="ru" onclick="setLanguage('ru');closeSettings()">RU</button>
-                        <button class="lang-btn" data-lang="en" onclick="setLanguage('en');closeSettings()">EN</button>
+                        <button class="lang-btn" data-lang="ru" onclick="setLanguage('ru');closeSettings()">RU</button>
+                        <button class="lang-btn active" data-lang="en" onclick="setLanguage('en');closeSettings()">EN</button>
                         <button class="lang-btn" data-lang="zh" onclick="setLanguage('zh');closeSettings()">中文</button>
                     </div>
                 </div>
@@ -87,22 +62,15 @@
 
     <!-- LEFT: Order Book -->
     <div class="panel panel-left">
-        <div class="panel-title">📊 Order Book <span class="badge-live" id="ob-live">LIVE</span></div>
+        <div class="panel-title" id="ob-panel-title">📊 Order Book <span class="badge-live" id="ob-live">LIVE</span></div>
         <div class="ob-header">
             <span id="ob-price-label">Price</span>
             <span id="ob-vol-label">Size</span>
             <span id="ob-total-label">Total</span>
         </div>
-        <div class="ob-asks" id="asks-container"><div class="ob-placeholder">Загрузка...</div></div>
+        <div class="ob-asks" id="asks-container"><div class="ob-placeholder">Loading...</div></div>
         <div class="ob-spread"><span id="spread-label">Spread: </span><span id="spread-value">---</span></div>
-        <div class="ob-bids" id="bids-container"><div class="ob-placeholder">Загрузка...</div></div>
-        <div class="panel-title" style="margin-top:8px">⚡ Trades</div>
-        <div class="ob-header">
-            <span id="t-price-label">Price</span>
-            <span id="t-vol-label">Size</span>
-            <span id="t-time-label">Time</span>
-        </div>
-        <div class="trades-list" id="trades-container"></div>
+        <div class="ob-bids" id="bids-container"><div class="ob-placeholder">Loading...</div></div>
     </div>
 
     <!-- CENTER -->
@@ -117,6 +85,7 @@
                 <span class="price-funding" id="funding-rate">FR: ---</span>
             </div>
         </div>
+
         <div class="chart-wrap">
             <div class="chart-container" id="chart-container"></div>
             <div class="chart-labels">
@@ -124,12 +93,9 @@
                 <span id="chart-low">L: ---</span>
             </div>
         </div>
-        <div class="mode-tabs">
-            <button class="mode-tab active" data-mode="perp" onclick="setMode('perp')">Perp · RISEx</button>
-            <button class="mode-tab" data-mode="spot" onclick="setMode('spot')">Spot · Helios</button>
-        </div>
+
         <div class="leverage-row" id="leverage-row">
-            <span class="lev-label">Leverage:</span>
+            <span class="lev-label" id="lev-label-text">Leverage:</span>
             <div class="lev-btns">
                 <button class="lev-btn active" data-lev="1"  onclick="setLeverage(1)">1×</button>
                 <button class="lev-btn"         data-lev="2"  onclick="setLeverage(2)">2×</button>
@@ -138,9 +104,10 @@
                 <button class="lev-btn"         data-lev="25" onclick="setLeverage(25)">25×</button>
             </div>
         </div>
+
         <div class="amount-row">
             <div class="amount-input-wrap">
-                <input type="number" id="amount-input" placeholder="Total USDC" min="0" step="1">
+                <input type="number" id="amount-input" placeholder="Amount USDC" min="0" step="1">
                 <span class="amount-unit">USDC</span>
             </div>
             <div class="quick-pct">
@@ -150,6 +117,7 @@
                 <button class="pct-btn" onclick="setPct(100)">MAX</button>
             </div>
         </div>
+
         <div class="trade-btns">
             <button class="btn-buy" id="btn-buy" onclick="handleBuyClick()">
                 <span class="btn-label">📈 LONG</span>
@@ -160,90 +128,105 @@
                 <span class="btn-sub" id="sell-sub">Open short</span>
             </button>
         </div>
-        <div class="hotkeys">
+
+        <div class="hotkeys" id="hotkeys-text">
             <kbd>B</kbd> LONG &nbsp; <kbd>S</kbd> SHORT &nbsp; <kbd>Esc</kbd> Reset
         </div>
+
         <div class="log-wrap">
-            <div class="panel-title">📋 Log</div>
-            <div class="trade-log" id="trade-log">
-                <div class="log-line muted">⏳ Loading...</div>
+            <div class="log-tabs">
+                <button class="log-tab active" id="tab-log"      onclick="switchLogTab('log')">📋 Log</button>
+                <button class="log-tab"         id="tab-trades"   onclick="switchLogTab('trades')">⚡ Trades</button>
+                <button class="log-tab"         id="tab-mytrades" onclick="switchLogTab('mytrades')">💼 My Trades</button>
+            </div>
+            <div class="log-pane" id="pane-log">
+                <div class="trade-log" id="trade-log">
+                    <div class="log-line muted">⏳ Loading...</div>
+                </div>
+            </div>
+            <div class="log-pane" id="pane-trades" style="display:none">
+                <div class="my-trades-header-inline" id="trades-header">
+                    <span>Price</span><span>Size</span><span>Time</span>
+                </div>
+                <div class="market-trades-list" id="market-trades-list"></div>
+            </div>
+            <div class="log-pane" id="pane-mytrades" style="display:none">
+                <div class="my-trades-header-inline" id="mytrades-header">
+                    <span>Side</span><span>Price</span><span>Size</span><span>Lev</span><span>PnL</span><span>Time</span>
+                </div>
+                <div class="my-trades-list-inline" id="my-trades-list">
+                    <div class="no-trades muted">No trades yet</div>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- RIGHT -->
     <div class="panel panel-right">
-        <div class="section">
-            <div class="section-title">💼 Wallet</div>
-            <div class="wallet-addr">
-                <span class="wallet-short" id="wallet-short">---</span>
-                <button class="btn-copy" onclick="copyAddress()">⧉</button>
+
+        <!-- Signer Key section -->
+        <div class="section" id="signer-section">
+            <div class="section-title" id="signer-title">🔑 RISEx API Key</div>
+            <div id="signer-not-connected">
+                <p class="signer-hint" id="signer-hint-text">
+                    Connect your RISEx Signer Key to start real trading.
+                </p>
+                <button class="btn-rise-api" onclick="openRiseApiPage()">
+                    <span id="btn-rise-api-text">Get API Key on rise.trade</span> ↗
+                </button>
+                <div class="signer-input-row">
+                    <input type="password" id="signer-key-input" placeholder="0x... (private key)" autocomplete="off">
+                    <button class="btn-sm btn-green" onclick="saveSignerKey()" id="btn-save-signer">Save</button>
+                </div>
+                <p class="signer-security-note" id="signer-security-note">
+                    🔒 Stored locally in your browser only. Never sent to our servers.
+                </p>
             </div>
-            <div class="balances">
-                <div class="bal-row"><span class="bal-label">USDC</span><span class="bal-val" id="bal-usdc">0.00</span></div>
-                <div class="bal-row"><span class="bal-label">WBTC</span><span class="bal-val" id="bal-wbtc">0.000000</span></div>
-                <div class="bal-row"><span class="bal-label">RISEx</span><span class="bal-val green" id="bal-risex">0.00</span></div>
-            </div>
-            <div class="wallet-actions">
-                <button class="btn-sm btn-green" onclick="handleDeposit()">↓ Deposit</button>
-                <button class="btn-sm btn-red"   onclick="handleWithdraw()">↑ Withdraw</button>
+            <div id="signer-connected" style="display:none">
+                <div class="signer-connected-row">
+                    <span class="signer-status-dot"></span>
+                    <span id="signer-address-short">---</span>
+                    <button class="btn-copy" onclick="copySignerAddress()">⧉</button>
+                </div>
+                <button class="btn-sm btn-red" onclick="disconnectSigner()" id="btn-disconnect-signer">Disconnect</button>
             </div>
         </div>
+
+        <!-- Balance -->
         <div class="section">
-            <div class="section-title">📦 Position</div>
-            <div class="pos-row"><span class="pos-label">Side</span><span class="pos-val" id="pos-side">---</span></div>
-            <div class="pos-row"><span class="pos-label">Size</span><span class="pos-val" id="pos-size">---</span></div>
-            <div class="pos-row"><span class="pos-label">Entry</span><span class="pos-val" id="pos-entry">---</span></div>
-            <div class="pos-row"><span class="pos-label">Liq.</span><span class="pos-val red" id="pos-liq">---</span></div>
-            <div class="pos-row"><span class="pos-label">PnL</span><span class="pos-val" id="pos-pnl">+0.00</span></div>
+            <div class="section-title" id="balance-title">💰 Balance</div>
+            <div class="balances">
+                <div class="bal-row"><span class="bal-label" id="bal-label-usdc">USDC (RISEx)</span><span class="bal-val green" id="bal-risex">0.00</span></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title" id="position-title">📦 Position</div>
+            <div class="pos-row"><span class="pos-label" id="pos-label-side">Side</span><span class="pos-val" id="pos-side">---</span></div>
+            <div class="pos-row"><span class="pos-label" id="pos-label-size">Size</span><span class="pos-val" id="pos-size">---</span></div>
+            <div class="pos-row"><span class="pos-label" id="pos-label-entry">Entry</span><span class="pos-val" id="pos-entry">---</span></div>
+            <div class="pos-row"><span class="pos-label" id="pos-label-liq">Liquidation</span><span class="pos-val red" id="pos-liq">---</span></div>
+            <div class="pos-row"><span class="pos-label" id="pos-label-pnl">PnL</span><span class="pos-val" id="pos-pnl">+0.00</span></div>
             <button class="btn-close-pos" id="btn-close-pos" onclick="closePosition()" style="display:none">✕ Close position</button>
         </div>
-        <div class="section">
-            <div class="section-title">📊 Statistics</div>
-            <div class="pos-row"><span class="pos-label">Trades</span><span class="pos-val" id="stat-trades">0</span></div>
-            <div class="pos-row"><span class="pos-label">Winrate</span><span class="pos-val" id="stat-winrate">0%</span></div>
-            <div class="pos-row"><span class="pos-label">Volume</span><span class="pos-val" id="stat-volume">0</span></div>
-            <div class="pos-row"><span class="pos-label">Best</span><span class="pos-val green" id="stat-best">---</span></div>
-            <div class="pos-row"><span class="pos-label">Worst</span><span class="pos-val red" id="stat-worst">---</span></div>
-        </div>
 
         <div class="section">
-            <div class="section-title">📋 Мои сделки</div>
-            <div class="my-trades-header">
-                <span>Side</span>
-                <span>Price</span>
-                <span>Size</span>
-                <span>PnL</span>
-            </div>
-            <div class="my-trades-list" id="my-trades-list">
-                <div class="no-trades muted">Нет сделок</div>
-            </div>
+            <div class="section-title" id="stats-title">📊 Statistics</div>
+            <div class="pos-row"><span class="pos-label" id="stat-label-trades">Trades</span><span class="pos-val" id="stat-trades">0</span></div>
+            <div class="pos-row"><span class="pos-label" id="stat-label-winrate">Winrate</span><span class="pos-val" id="stat-winrate">0%</span></div>
+            <div class="pos-row"><span class="pos-label" id="stat-label-volume">Volume</span><span class="pos-val" id="stat-volume">0</span></div>
+            <div class="pos-row"><span class="pos-label" id="stat-label-best">Best</span><span class="pos-val green" id="stat-best">---</span></div>
+            <div class="pos-row"><span class="pos-label" id="stat-label-worst">Worst</span><span class="pos-val red" id="stat-worst">---</span></div>
         </div>
     </div>
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
-
-<!-- PIN модал (только для Advanced) -->
-<div class="modal-overlay" id="pin-modal" style="display:none">
-    <div class="modal">
-        <div class="modal-title">🔐 PIN</div>
-        <input type="password" id="pin-input" maxlength="8"
-               placeholder="••••" class="pin-input" autocomplete="off">
-        <div class="modal-btns">
-            <button class="btn-sm btn-green" onclick="confirmPin()">OK</button>
-            <button class="btn-sm btn-red"   onclick="cancelPin()">Cancel</button>
-        </div>
-        <div class="pin-error" id="pin-error"></div>
-    </div>
-</div>
 
 <script src="js/config.js"></script>
 <script src="js/abi.js"></script>
 <script src="js/i18n.js"></script>
-<script src="js/security.js"></script>
-<script src="js/wallet.js"></script>
+<script src="js/signer.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/risex.js"></script>
 <script src="js/trading.js"></script>

@@ -1,5 +1,5 @@
 // ============================================================
-// js/main.js — ТОЧКА ВХОДА v2.5
+// js/main.js — ENTRY POINT v3.0
 // ============================================================
 
 document.addEventListener('keydown', e => {
@@ -13,42 +13,50 @@ document.addEventListener('keydown', e => {
     }
 });
 
-window.addEventListener('DOMContentLoaded', async () => {
-    console.log('%c🚀 ПЛОВ Scalping Terminal v2.1', 'color:#00ff9d;font-weight:bold');
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.activeElement?.id === 'signer-key-input') {
+        saveSignerKey();
+    }
+});
 
-    // 1. UI + безопасность + язык
-    initSecurity();
+window.addEventListener('DOMContentLoaded', async () => {
+    console.log('%c🚀 PLOV Scalping Terminal v3.0', 'color:#00ff9d;font-weight:bold');
+
     initUI();
     loadLanguage();
     setLanguage(currentLang);
     initChart();
 
-    // 2. Стакан и цена — СРАЗУ, без авторизации (публичные данные)
+    // Signer key — restore if saved
+    initEthProvider();
+    loadSignerKey();
+
+    // Order book + price — public data, start immediately
     await loadSystemConfig();
     startOrderBook(currentMarket);
     startPriceFeed();
 
-    // 3. Firebase — в фоне, только для авторизации
+    if (isSignerReady()) {
+        fetchBalance();
+    }
+
+    // Firebase — background, only for platform login
     let firebaseReady = false;
     for (let i = 0; i < 20; i++) {
-        if (typeof firebase !== 'undefined' && firebase.app) {
-            firebaseReady = true; break;
-        }
+        if (typeof firebase !== 'undefined' && firebase.app) { firebaseReady = true; break; }
         await new Promise(r => setTimeout(r, 300));
     }
 
     if (!firebaseReady) {
-        addToLog('⚠️ Google авторизация недоступна. Стакан работает.', 'meta');
+        addToLog('⚠️ Google sign-in unavailable. Trading terminal works.', 'meta');
         return;
     }
 
     let app;
     try { app = firebase.app(); } catch { app = firebase.initializeApp(firebaseConfig); }
     window.fbAuth   = firebase.auth();
-    window.fbDb     = firebase.firestore();
     window.fbGoogle = new firebase.auth.GoogleAuthProvider();
 
-    // 4. Auth listener
     fbAuth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
@@ -58,12 +66,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 
             addToLog(`${t('welcome')}, ${user.displayName || user.email}!`, 'success');
 
-            await createOrLoadWallet(user.uid);
-            if (!userWallet.address) return;
+            loadStats(user.uid);
+            if (typeof loadMyTrades === 'function') loadMyTrades(user.uid);
 
-            updateBalanceUI();
-            loadStats().catch(() => {});
-            if (typeof loadMyTrades === 'function') loadMyTrades();
             addToLog(t('hotkeys_hint'), 'meta');
             showWelcomeBubble();
 
@@ -72,34 +77,21 @@ window.addEventListener('DOMContentLoaded', async () => {
             currentUser = null;
             updateAuthUI();
             setLanguage(currentLang);
-            // НЕ останавливаем стакан при выходе — он публичный
             addToLog(t('login_start'), 'info');
         }
     });
 
-    console.log('%c✅ ПЛОВ готов', 'color:#00ff9d;font-weight:bold');
+    console.log('%c✅ PLOV ready', 'color:#00ff9d;font-weight:bold');
 });
 
-// Экспорты
-window.handleAuth             = handleAuth;
-window.toggleTheme            = toggleTheme;
-window.setLanguage            = setLanguage;
-window.handleBuyClick         = handleBuyClick;
-window.handleSellClick        = handleSellClick;
-window.setPct                 = setPct;
-window.setMode                = setMode;
-window.setLeverage            = setLeverage;
-window.closePosition          = closePosition;
-window.handleDeposit          = handleDeposit;
-window.handleWithdraw         = handleWithdraw;
-window.copyAddress            = copyAddress;
-window.confirmPin             = confirmPin;
-window.cancelPin              = cancelPin;
-window.showToast              = showToast;
-window.toggleSettings         = toggleSettings;
-window.closeSettings          = closeSettings;
-window.setSecurityMode        = setSecurityMode;
-window.showBubbleManual       = showBubbleManual;
-window.dismissBubble          = dismissBubble;
-window.dismissAndOpenSettings = dismissAndOpenSettings;
-window.switchLogTab           = switchLogTab;
+// Exports
+window.handleAuth      = handleAuth;
+window.toggleTheme     = toggleTheme;
+window.setLanguage     = setLanguage;
+window.handleBuyClick  = handleBuyClick;
+window.handleSellClick = handleSellClick;
+window.setPct          = setPct;
+window.setLeverage     = setLeverage;
+window.closePosition   = closePosition;
+window.showToast       = showToast;
+window.switchLogTab    = switchLogTab;

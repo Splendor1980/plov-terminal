@@ -39,7 +39,7 @@ let RISEX_CONTRACTS = {
 
 const MARKETS = { BTC: 1, ETH: 2 };
 
-let currentLang     = 'ru';
+let currentLang     = 'en';
 let currentMode     = 'perp';
 let currentLeverage = 10;
 let currentMarket   = 1;
