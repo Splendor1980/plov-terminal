@@ -1,5 +1,5 @@
 // ============================================================
-// RISEX API CLIENT - FULL FIXED VERSION
+// RISEX API CLIENT - FULL FIXED WITH DEBUG
 // ============================================================
 
 class RisexAPI {
@@ -15,19 +15,18 @@ class RisexAPI {
         this._isConnected = false;
         this._pendingMessages = [];
         this._messageId = 0;
+        this._debug = true; // Включаем отладку
 
-        // Используем глобальные конфиги
-        this._wsUrl = (window.RISEX_API && window.RISEX_API.ws) 
-            ? window.RISEX_API.ws 
-            : 'wss://ws.rise.trade/ws';
-
-        // Форсируем mainnet
-        if (this._wsUrl.includes('testnet')) {
-            console.warn('⚠️ Fixing testnet URL to mainnet');
-            this._wsUrl = 'wss://ws.rise.trade/ws';
+        // ПРИНУДИТЕЛЬНО МАЙННЕТ
+        this._wsUrl = 'wss://ws.rise.trade/ws';
+        
+        // Перезаписываем глобальный URL
+        if (window.RISEX_API) {
+            window.RISEX_API.ws = this._wsUrl;
         }
 
         console.log('🔌 RisexAPI initialized with WS:', this._wsUrl);
+        console.log('🔍 Global RISEX_API:', window.RISEX_API);
     }
 
     // ============================================================
@@ -43,33 +42,75 @@ class RisexAPI {
         return new Promise((resolve, reject) => {
             try {
                 console.log(`🔌 Connecting to WebSocket: ${this._wsUrl}`);
+                console.log(`📡 ReadyState: ${this._ws ? this._ws.readyState : 'null'}`);
+                
+                // СОЗДАЁМ WS С ПРИНУДИТЕЛЬНЫМ URL
                 this._ws = new WebSocket(this._wsUrl);
+                
+                // Логируем создание
+                console.log('🟡 WebSocket instance created:', this._ws);
+
                 this._ws.onopen = (event) => {
-                    console.log('✅ WebSocket connected');
+                    console.log('✅ WebSocket CONNECTED successfully!');
                     this._isConnected = true;
                     this._reconnectAttempts = 0;
                     this._startPing();
                     this._flushPendingMessages();
+                    
+                    // Обновляем статус в UI
+                    const statusEl = document.getElementById('status');
+                    if (statusEl) {
+                        statusEl.textContent = '🟢 Connected';
+                        statusEl.style.color = '#00ff88';
+                    }
+                    
                     resolve(event);
                 };
+                
                 this._ws.onmessage = this._handleMessage.bind(this);
+                
                 this._ws.onerror = (event) => {
                     console.error('❌ WebSocket error:', event);
+                    console.error('❌ Error details:', {
+                        url: this._wsUrl,
+                        readyState: this._ws ? this._ws.readyState : 'null',
+                        event: event
+                    });
+                    
+                    // Показываем ошибку в UI
+                    const statusEl = document.getElementById('status');
+                    if (statusEl) {
+                        statusEl.textContent = '❌ Connection Error';
+                        statusEl.style.color = '#ff4444';
+                    }
+                    
                     reject(event);
                 };
+                
                 this._ws.onclose = (event) => {
-                    console.log(`🔌 WebSocket closed: code=${event.code}`);
+                    console.log(`🔌 WebSocket closed: code=${event.code}, reason=${event.reason || 'no reason'}`);
+                    console.log(`📊 Was connected: ${this._isConnected}`);
                     this._isConnected = false;
                     this._stopPing();
+                    
+                    // Обновляем статус в UI
+                    const statusEl = document.getElementById('status');
+                    if (statusEl) {
+                        statusEl.textContent = '🔴 Disconnected';
+                        statusEl.style.color = '#ff4444';
+                    }
+                    
                     if (!this._manualClose) {
+                        console.log('🔄 Scheduling reconnect...');
                         this._reconnect();
                     }
                 };
 
-                // Timeout
+                // Таймаут
                 this._wsTimeout = setTimeout(() => {
                     if (this._ws && this._ws.readyState !== WebSocket.OPEN) {
-                        console.warn('⚠️ WebSocket connection timeout');
+                        console.warn('⚠️ WebSocket connection timeout after 10s');
+                        console.warn(`📊 ReadyState: ${this._ws.readyState}`);
                         this._ws.close();
                         reject(new Error('Connection timeout'));
                     }
@@ -77,6 +118,7 @@ class RisexAPI {
 
             } catch (e) {
                 console.error('❌ WebSocket init error:', e);
+                console.error('❌ Stack:', e.stack);
                 reject(e);
             }
         });
@@ -95,12 +137,17 @@ class RisexAPI {
 
     subscribe(channel, callback) {
         if (!this._isConnected) {
-            console.warn('⚠️ Not connected, queueing subscription');
+            console.warn('⚠️ Not connected, queueing subscription:', channel);
             this._pendingMessages.push({
                 type: 'subscribe',
                 channel: channel,
                 callback: callback
             });
+            
+            // Пытаемся переподключиться
+            if (!this._manualClose) {
+                this.connect().catch(e => console.warn('Reconnect attempt:', e));
+            }
             return;
         }
 
@@ -129,7 +176,6 @@ class RisexAPI {
             params: [channel]
         };
 
-        // Remove all subscriptions for this channel
         for (const [key, value] of this._subscriptions) {
             if (value.channel === channel) {
                 this._subscriptions.delete(key);
@@ -148,17 +194,27 @@ class RisexAPI {
         if (this._ws && this._ws.readyState === WebSocket.OPEN) {
             const data = JSON.stringify(message);
             this._ws.send(data);
-            console.log(`📤 Sent:`, message);
+            if (this._debug) {
+                console.log(`📤 Sent:`, message);
+            }
         } else {
             console.warn('⚠️ Cannot send, WebSocket not open');
+            console.warn(`📊 ReadyState: ${this._ws ? this._ws.readyState : 'null'}`);
             this._pendingMessages.push(message);
+            
+            // Пытаемся переподключиться
+            if (!this._manualClose) {
+                this.connect().catch(e => console.warn('Reconnect attempt:', e));
+            }
         }
     }
 
     _handleMessage(event) {
         try {
             const data = JSON.parse(event.data);
-            console.log(`📥 Received:`, data);
+            if (this._debug) {
+                console.log(`📥 Received:`, data);
+            }
 
             // Handle ping
             if (data.type === 'ping') {
@@ -205,6 +261,7 @@ class RisexAPI {
     }
 
     _flushPendingMessages() {
+        console.log(`📦 Flushing ${this._pendingMessages.length} pending messages`);
         while (this._pendingMessages.length > 0) {
             const msg = this._pendingMessages.shift();
             if (msg.type === 'subscribe') {
@@ -227,8 +284,9 @@ class RisexAPI {
 
         setTimeout(() => {
             if (!this._manualClose) {
-                this.connect().catch(() => {
-                    // Will retry
+                console.log(`🔄 Attempting reconnect #${this._reconnectAttempts}...`);
+                this.connect().catch((e) => {
+                    console.warn(`⚠️ Reconnect #${this._reconnectAttempts} failed:`, e);
                 });
             }
         }, delay);
@@ -255,25 +313,28 @@ class RisexAPI {
     }
 
     // ============================================================
-    // REST METHODS (fallback)
+    // REST METHODS (fallback with explicit URLs)
     // ============================================================
 
     async restRequest(endpoint, params = {}) {
-        const httpUrl = (window.RISEX_API && window.RISEX_API.http) 
-            ? window.RISEX_API.http 
-            : 'https://api.rise.trade';
+        // ФОРСИРУЕМ МАЙННЕТ API
+        const httpUrl = 'https://api.rise.trade';
         
         const url = new URL(`${httpUrl}${endpoint}`);
         Object.keys(params).forEach(key => {
             url.searchParams.append(key, params[key]);
         });
 
+        console.log(`🌐 REST request: ${url.toString()}`);
+
         try {
             const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            return await response.json();
+            const data = await response.json();
+            console.log(`✅ REST response:`, data);
+            return data;
         } catch (e) {
             console.error('❌ REST request failed:', e);
             throw e;
@@ -301,7 +362,9 @@ class RisexAPI {
     // ============================================================
 
     async loadSystemConfig() {
-        const url = window.SYSTEM_CONFIG_URL || 'https://raw.githubusercontent.com/risechain/rise-contracts/main/config/mainnet.json';
+        const url = 'https://raw.githubusercontent.com/risechain/rise-contracts/main/config/mainnet.json';
+        console.log(`📥 Loading system config from: ${url}`);
+        
         try {
             const response = await fetch(url);
             if (!response.ok) {
@@ -310,10 +373,8 @@ class RisexAPI {
             const config = await response.json();
             console.log('✅ System config loaded:', config);
             
-            // Store in window for other components
             window.SYSTEM_CONFIG = config;
             
-            // Extract contract addresses
             if (config.contracts) {
                 window.RISEX_CONTRACTS = {
                     usdc: config.contracts.usdc || '0xe436820ba0c69702c1d3e601d421c0ef38262739',
@@ -328,7 +389,6 @@ class RisexAPI {
             return config;
         } catch (e) {
             console.error('❌ Failed to load system config:', e);
-            // Use fallback
             window.RISEX_CONTRACTS = window.RISEX_CONTRACTS || {
                 usdc: '0xe436820ba0c69702c1d3e601d421c0ef38262739',
                 perpsManager: '0x53f10facfc8965750494e6965f5d6da39b41d852',
@@ -354,3 +414,4 @@ const risex = new RisexAPI();
 window.risex = risex;
 
 console.log('✅ RisexAPI initialized and ready');
+console.log('🔍 Final WS URL:', risex._wsUrl);
