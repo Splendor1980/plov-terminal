@@ -1,58 +1,61 @@
 // ============================================================
-// js/config.js — КОНФИГУРАЦИЯ v3.0
+// ГЛОБАЛЬНАЯ КОНФИГУРАЦИЯ
 // ============================================================
 
-const firebaseConfig = {
-    apiKey:            "AIzaSyA17DnsliLjYgsEK_HnSptyqOqufSbvdKA",
-    authDomain:        "plov-f84e7.firebaseapp.com",
-    projectId:         "plov-f84e7",
-    storageBucket:     "plov-f84e7.firebasestorage.app",
-    messagingSenderId: "151638202833",
-    appId:             "1:151638202833:web:107e0ef73da042fb8d28f0"
-};
+// Принудительно выставляем MAINNET (для продакшена)
+const USE_MAINNET = true;   // ← mainnet
+const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-// ── Mainnet/Testnet switch ───────────────────────────────────
-const USE_MAINNET = true;   // ← true = mainnet
-
-const RISE_CHAIN = USE_MAINNET ? {
-    chainId:  4153,
-    rpcUrl:   "https://mainnet.riselabs.xyz",
-    explorer: "https://explorer.riselabs.xyz"
-} : {
-    chainId:  11155931,
-    rpcUrl:   "https://testnet.riselabs.xyz",
-    explorer: "https://explorer.testnet.riselabs.xyz"
-};
-
-const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+// Ручной оверрайд для WebSocket (форсим mainnet)
+const FORCE_MAINNET_WS = true; // ← добавил явный флаг
 
 const RISEX_API = {
-    rest: IS_LOCAL
-        ? (USE_MAINNET ? "https://api.rise.trade" : "https://api.testnet.rise.trade")
-        : "/api",
-    ws: USE_MAINNET
-        ? "wss://ws.rise.trade/ws"
-        : "wss://ws.testnet.rise.trade/ws"
+    ws: USE_MAINNET 
+        ? "wss://ws.rise.trade/ws" 
+        : "wss://ws.testnet.rise.trade/ws",
+    http: USE_MAINNET
+        ? "https://api.rise.trade"
+        : "https://api.testnet.rise.trade",
+    explorer: USE_MAINNET
+        ? "https://explorer.risechain.com"
+        : "https://explorer.testnet.risechain.com"
 };
 
-let RISEX_CONTRACTS = {
-    usdc: null, router: null, ordersManager: null,
-    perpsManager: null, authorization: null, collateral: null
+const SYSTEM_CONFIG_URL = USE_MAINNET
+    ? "https://raw.githubusercontent.com/risechain/rise-contracts/main/config/mainnet.json"
+    : "https://raw.githubusercontent.com/risechain/rise-contracts/main/config/testnet.json";
+
+// RPC endpoints
+const RPC_ENDPOINTS = {
+    mainnet: {
+        rest: "https://rpc.risechain.com",
+        ws: "wss://rpc.risechain.com/ws"
+    },
+    testnet: {
+        rest: "https://rpc.testnet.rise.trade",
+        ws: "wss://rpc.testnet.rise.trade/ws"
+    }
 };
 
-const MARKETS = { BTC: 1, ETH: 2 };
+// ============================================================
+// НЕ МЕНЯТЬ НИЖЕ (автоматический выбор)
+// ============================================================
 
-let currentLang     = 'en';
-let currentMarket   = 1;
-let currentLeverage = 10;
+const RPC_CONFIG = USE_MAINNET ? RPC_ENDPOINTS.mainnet : RPC_ENDPOINTS.testnet;
 
-window.firebaseConfig  = firebaseConfig;
-window.RISE_CHAIN      = RISE_CHAIN;
-window.RISEX_API       = RISEX_API;
-window.RISEX_CONTRACTS = RISEX_CONTRACTS;
-window.MARKETS         = MARKETS;
-window.USE_MAINNET     = USE_MAINNET;
+// Для обратной совместимости
+if (typeof window !== 'undefined') {
+    window.USE_MAINNET = USE_MAINNET;
+    window.IS_LOCAL = IS_LOCAL;
+    window.RISEX_API = RISEX_API;
+    window.RPC_CONFIG = RPC_CONFIG;
+    window.FORCE_MAINNET_WS = FORCE_MAINNET_WS;
+}
 
-console.log('%cConfig loaded', 'color:#00ff9d',
-    USE_MAINNET ? '(MAINNET)' : '(TESTNET)',
-    IS_LOCAL ? '— direct' : '— via Vercel proxy');
+console.log('📦 CONFIG LOADED:', {
+    USE_MAINNET,
+    IS_LOCAL,
+    FORCE_MAINNET_WS,
+    WS_URL: RISEX_API.ws,
+    RPC: RPC_CONFIG
+});
