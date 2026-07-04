@@ -1,61 +1,71 @@
 // ============================================================
-// ГЛОБАЛЬНАЯ КОНФИГУРАЦИЯ
+// ЖЁСТКАЯ КОНФИГУРАЦИЯ (перезаписывает всё)
 // ============================================================
 
-// Принудительно выставляем MAINNET (для продакшена)
-const USE_MAINNET = true;   // ← mainnet
+(function() {
+    'use strict';
+
+    // 1. ЯВНО ЗАДАЁМ MAINNET
+    const MAINNET = true;
+    const TESTNET = false;
+
+    // 2. Форсируем переменные в глобальной области
+    window.USE_MAINNET = MAINNET;
+    window.FORCE_MAINNET_WS = MAINNET;
+
+    // 3. Жёстко задаём URL (игнорируем любые другие)
+    const WS_MAINNET = 'wss://ws.rise.trade/ws';
+    const WS_TESTNET = 'wss://ws.testnet.rise.trade/ws';
+
+    // 4. Переопределяем RISEX_API
+    window.RISEX_API = {
+        ws: WS_MAINNET,
+        http: 'https://api.rise.trade',
+        explorer: 'https://explorer.risechain.com'
+    };
+
+    // 5. RPC конфиг
+    window.RPC_CONFIG = {
+        rest: 'https://rpc.risechain.com',
+        ws: 'wss://rpc.risechain.com/ws'
+    };
+
+    // 6. Для обратной совместимости
+    window.IS_LOCAL = window.location.hostname === 'localhost' 
+        || window.location.hostname === '127.0.0.1';
+
+    // 7. SYSTEM_CONFIG_URL для загрузки контрактов
+    window.SYSTEM_CONFIG_URL = MAINNET
+        ? "https://raw.githubusercontent.com/risechain/rise-contracts/main/config/mainnet.json"
+        : "https://raw.githubusercontent.com/risechain/rise-contracts/main/config/testnet.json";
+
+    console.log('🔥 HARD RESET CONFIG:', {
+        USE_MAINNET: window.USE_MAINNET,
+        WS: window.RISEX_API.ws,
+        RPC: window.RPC_CONFIG.rest,
+        IS_LOCAL: window.IS_LOCAL
+    });
+
+    // 8. Экстренный перехват WebSocket
+    const OriginalWebSocket = window.WebSocket;
+    window.WebSocket = function(url, protocols) {
+        // Если URL содержит testnet - заменяем на mainnet
+        if (typeof url === 'string' && url.includes('testnet')) {
+            console.warn('⚠️ WebSocket interceptor: replacing testnet with mainnet');
+            url = url.replace('testnet.rise.trade', 'rise.trade');
+            url = url.replace('ws.testnet', 'ws');
+        }
+        return new OriginalWebSocket(url, protocols);
+    };
+    window.WebSocket.prototype = OriginalWebSocket.prototype;
+    console.log('✅ WebSocket interceptor installed');
+
+})();
+
+// Для обратной совместимости с старым кодом
+const USE_MAINNET = true;
 const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-// Ручной оверрайд для WebSocket (форсим mainnet)
-const FORCE_MAINNET_WS = true; // ← добавил явный флаг
-
-const RISEX_API = {
-    ws: USE_MAINNET 
-        ? "wss://ws.rise.trade/ws" 
-        : "wss://ws.testnet.rise.trade/ws",
-    http: USE_MAINNET
-        ? "https://api.rise.trade"
-        : "https://api.testnet.rise.trade",
-    explorer: USE_MAINNET
-        ? "https://explorer.risechain.com"
-        : "https://explorer.testnet.risechain.com"
-};
-
-const SYSTEM_CONFIG_URL = USE_MAINNET
-    ? "https://raw.githubusercontent.com/risechain/rise-contracts/main/config/mainnet.json"
-    : "https://raw.githubusercontent.com/risechain/rise-contracts/main/config/testnet.json";
-
-// RPC endpoints
-const RPC_ENDPOINTS = {
-    mainnet: {
-        rest: "https://rpc.risechain.com",
-        ws: "wss://rpc.risechain.com/ws"
-    },
-    testnet: {
-        rest: "https://rpc.testnet.rise.trade",
-        ws: "wss://rpc.testnet.rise.trade/ws"
-    }
-};
-
-// ============================================================
-// НЕ МЕНЯТЬ НИЖЕ (автоматический выбор)
-// ============================================================
-
-const RPC_CONFIG = USE_MAINNET ? RPC_ENDPOINTS.mainnet : RPC_ENDPOINTS.testnet;
-
-// Для обратной совместимости
-if (typeof window !== 'undefined') {
-    window.USE_MAINNET = USE_MAINNET;
-    window.IS_LOCAL = IS_LOCAL;
-    window.RISEX_API = RISEX_API;
-    window.RPC_CONFIG = RPC_CONFIG;
-    window.FORCE_MAINNET_WS = FORCE_MAINNET_WS;
-}
-
-console.log('📦 CONFIG LOADED:', {
-    USE_MAINNET,
-    IS_LOCAL,
-    FORCE_MAINNET_WS,
-    WS_URL: RISEX_API.ws,
-    RPC: RPC_CONFIG
-});
+const RISEX_API = window.RISEX_API;
+const RPC_CONFIG = window.RPC_CONFIG;
+const SYSTEM_CONFIG_URL = window.SYSTEM_CONFIG_URL;
+const FORCE_MAINNET_WS = true;
