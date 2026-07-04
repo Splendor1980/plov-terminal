@@ -1,5 +1,5 @@
 // ============================================================
-// RISEX API CLIENT - FULL FIXED WITH DEBUG
+// RISEX API CLIENT - FULL FIXED WITH GLOBAL EXPORT
 // ============================================================
 
 class RisexAPI {
@@ -15,18 +15,20 @@ class RisexAPI {
         this._isConnected = false;
         this._pendingMessages = [];
         this._messageId = 0;
-        this._debug = true; // Включаем отладку
+        this._debug = true;
+        this._wsUrl = 'wss://ws.rise.trade/ws'; // Жёстко mainnet
+        this._currentSymbol = 'BTCUSDT';
+        this._orderBookInterval = null;
+        this._tradeInterval = null;
+        this._tickerInterval = null;
+        this._restEnabled = true;
 
-        // ПРИНУДИТЕЛЬНО МАЙННЕТ
-        this._wsUrl = 'wss://ws.rise.trade/ws';
-        
         // Перезаписываем глобальный URL
         if (window.RISEX_API) {
             window.RISEX_API.ws = this._wsUrl;
         }
 
         console.log('🔌 RisexAPI initialized with WS:', this._wsUrl);
-        console.log('🔍 Global RISEX_API:', window.RISEX_API);
     }
 
     // ============================================================
@@ -42,75 +44,56 @@ class RisexAPI {
         return new Promise((resolve, reject) => {
             try {
                 console.log(`🔌 Connecting to WebSocket: ${this._wsUrl}`);
-                console.log(`📡 ReadyState: ${this._ws ? this._ws.readyState : 'null'}`);
-                
-                // СОЗДАЁМ WS С ПРИНУДИТЕЛЬНЫМ URL
+
                 this._ws = new WebSocket(this._wsUrl);
-                
-                // Логируем создание
-                console.log('🟡 WebSocket instance created:', this._ws);
 
                 this._ws.onopen = (event) => {
-                    console.log('✅ WebSocket CONNECTED successfully!');
+                    console.log('✅✅✅ WEBSOCKET OPENED SUCCESSFULLY!');
                     this._isConnected = true;
                     this._reconnectAttempts = 0;
                     this._startPing();
                     this._flushPendingMessages();
-                    
-                    // Обновляем статус в UI
+
                     const statusEl = document.getElementById('status');
                     if (statusEl) {
                         statusEl.textContent = '🟢 Connected';
                         statusEl.style.color = '#00ff88';
                     }
-                    
+
                     resolve(event);
                 };
-                
+
                 this._ws.onmessage = this._handleMessage.bind(this);
-                
+
                 this._ws.onerror = (event) => {
                     console.error('❌ WebSocket error:', event);
-                    console.error('❌ Error details:', {
-                        url: this._wsUrl,
-                        readyState: this._ws ? this._ws.readyState : 'null',
-                        event: event
-                    });
-                    
-                    // Показываем ошибку в UI
                     const statusEl = document.getElementById('status');
                     if (statusEl) {
-                        statusEl.textContent = '❌ Connection Error';
+                        statusEl.textContent = '❌ Error';
                         statusEl.style.color = '#ff4444';
                     }
-                    
                     reject(event);
                 };
-                
+
                 this._ws.onclose = (event) => {
-                    console.log(`🔌 WebSocket closed: code=${event.code}, reason=${event.reason || 'no reason'}`);
-                    console.log(`📊 Was connected: ${this._isConnected}`);
+                    console.log(`🔌 WebSocket closed: code=${event.code}`);
                     this._isConnected = false;
                     this._stopPing();
-                    
-                    // Обновляем статус в UI
+
                     const statusEl = document.getElementById('status');
                     if (statusEl) {
                         statusEl.textContent = '🔴 Disconnected';
                         statusEl.style.color = '#ff4444';
                     }
-                    
+
                     if (!this._manualClose) {
-                        console.log('🔄 Scheduling reconnect...');
                         this._reconnect();
                     }
                 };
 
-                // Таймаут
                 this._wsTimeout = setTimeout(() => {
                     if (this._ws && this._ws.readyState !== WebSocket.OPEN) {
-                        console.warn('⚠️ WebSocket connection timeout after 10s');
-                        console.warn(`📊 ReadyState: ${this._ws.readyState}`);
+                        console.warn('⚠️ WebSocket connection timeout');
                         this._ws.close();
                         reject(new Error('Connection timeout'));
                     }
@@ -118,7 +101,6 @@ class RisexAPI {
 
             } catch (e) {
                 console.error('❌ WebSocket init error:', e);
-                console.error('❌ Stack:', e.stack);
                 reject(e);
             }
         });
@@ -127,6 +109,7 @@ class RisexAPI {
     disconnect() {
         this._manualClose = true;
         this._stopPing();
+        this._stopPolling();
         if (this._ws) {
             this._ws.close();
             this._ws = null;
@@ -134,6 +117,59 @@ class RisexAPI {
         this._isConnected = false;
         console.log('🔌 WebSocket disconnected manually');
     }
+
+    // ============================================================
+    // ORDER BOOK METHODS (public API)
+    // ============================================================
+
+    startOrderBook(symbol = 1) {
+        // symbol: 1 = BTC, 2 = ETH и т.д.
+        const symbolMap = {
+            1: 'BTCUSDT',
+            2: 'ETHUSDT',
+            3: 'SOLUSDT',
+            4: 'DOGEUSDT'
+        };
+        
+        this._currentSymbol = symbolMap[symbol] || 'BTCUSDT';
+        console.log(`🚀 Starting order book for ${this._currentSymbol}`);
+
+        // Сначала пробуем WebSocket
+        if (this._isConnected) {
+            this.subscribe(`orderbook:${this._currentSymbol}`, (data) => {
+                console.log('📊 WS OrderBook:', data);
+                this._updateOrderBookUI(data);
+            });
+            this.subscribe(`ticker:${this._currentSymbol}`, (data) => {
+                console.log('📈 WS Ticker:', data);
+                this._updateTickerUI(data);
+            });
+            this.subscribe(`trades:${this._currentSymbol}`, (data) => {
+                console.log('📋 WS Trades:', data);
+                this._updateTradesUI(data);
+            });
+        }
+
+        // Запускаем REST polling как fallback
+        this._startPolling();
+        
+        return true;
+    }
+
+    stopOrderBook() {
+        console.log('⏹️ Stopping order book');
+        this._stopPolling();
+        // Отписываемся от каналов
+        if (this._isConnected) {
+            this.unsubscribe(`orderbook:${this._currentSymbol}`);
+            this.unsubscribe(`ticker:${this._currentSymbol}`);
+            this.unsubscribe(`trades:${this._currentSymbol}`);
+        }
+    }
+
+    // ============================================================
+    // SUBSCRIPTION METHODS
+    // ============================================================
 
     subscribe(channel, callback) {
         if (!this._isConnected) {
@@ -143,8 +179,6 @@ class RisexAPI {
                 channel: channel,
                 callback: callback
             });
-            
-            // Пытаемся переподключиться
             if (!this._manualClose) {
                 this.connect().catch(e => console.warn('Reconnect attempt:', e));
             }
@@ -199,10 +233,7 @@ class RisexAPI {
             }
         } else {
             console.warn('⚠️ Cannot send, WebSocket not open');
-            console.warn(`📊 ReadyState: ${this._ws ? this._ws.readyState : 'null'}`);
             this._pendingMessages.push(message);
-            
-            // Пытаемся переподключиться
             if (!this._manualClose) {
                 this.connect().catch(e => console.warn('Reconnect attempt:', e));
             }
@@ -216,13 +247,11 @@ class RisexAPI {
                 console.log(`📥 Received:`, data);
             }
 
-            // Handle ping
             if (data.type === 'ping') {
                 this._send({ type: 'pong' });
                 return;
             }
 
-            // Handle subscription updates
             if (data.type === 'subscription' && data.data) {
                 const callback = this._subscriptions.get(data.id);
                 if (callback) {
@@ -231,7 +260,6 @@ class RisexAPI {
                 return;
             }
 
-            // Handle response
             if (data.id && this._callbacks.has(data.id)) {
                 const cb = this._callbacks.get(data.id);
                 this._callbacks.delete(data.id);
@@ -284,57 +312,78 @@ class RisexAPI {
 
         setTimeout(() => {
             if (!this._manualClose) {
-                console.log(`🔄 Attempting reconnect #${this._reconnectAttempts}...`);
-                this.connect().catch((e) => {
-                    console.warn(`⚠️ Reconnect #${this._reconnectAttempts} failed:`, e);
-                });
+                this.connect().catch(() => {});
             }
         }, delay);
     }
 
     // ============================================================
-    // ORDERBOOK METHODS
+    // REST POLLING (FALLBACK)
     // ============================================================
 
-    getOrderBook(symbol, callback) {
-        this.subscribe(`orderbook:${symbol}`, callback);
+    _startPolling() {
+        this._stopPolling();
+        
+        // Получаем ticker каждые 2 секунды
+        this._tickerInterval = setInterval(async () => {
+            try {
+                const data = await this.getTickerRest(this._currentSymbol);
+                if (data) this._updateTickerUI(data);
+            } catch (e) { /* silent */ }
+        }, 2000);
+
+        // Получаем orderbook каждые 5 секунд
+        this._orderBookInterval = setInterval(async () => {
+            try {
+                const data = await this.getOrderBookRest(this._currentSymbol);
+                if (data) this._updateOrderBookUI(data);
+            } catch (e) { /* silent */ }
+        }, 5000);
+
+        // Получаем trades каждые 3 секунды
+        this._tradeInterval = setInterval(async () => {
+            try {
+                const data = await this.getTradesRest(this._currentSymbol);
+                if (data && data.trades) this._updateTradesUI(data);
+            } catch (e) { /* silent */ }
+        }, 3000);
+
+        console.log('🔄 REST polling started');
     }
 
-    getTicker(symbol, callback) {
-        this.subscribe(`ticker:${symbol}`, callback);
-    }
-
-    getTrades(symbol, callback) {
-        this.subscribe(`trades:${symbol}`, callback);
-    }
-
-    getKline(symbol, interval, callback) {
-        this.subscribe(`kline:${symbol}:${interval}`, callback);
+    _stopPolling() {
+        if (this._tickerInterval) {
+            clearInterval(this._tickerInterval);
+            this._tickerInterval = null;
+        }
+        if (this._orderBookInterval) {
+            clearInterval(this._orderBookInterval);
+            this._orderBookInterval = null;
+        }
+        if (this._tradeInterval) {
+            clearInterval(this._tradeInterval);
+            this._tradeInterval = null;
+        }
+        console.log('⏹️ REST polling stopped');
     }
 
     // ============================================================
-    // REST METHODS (fallback with explicit URLs)
+    // REST METHODS
     // ============================================================
 
     async restRequest(endpoint, params = {}) {
-        // ФОРСИРУЕМ МАЙННЕТ API
         const httpUrl = 'https://api.rise.trade';
-        
         const url = new URL(`${httpUrl}${endpoint}`);
         Object.keys(params).forEach(key => {
             url.searchParams.append(key, params[key]);
         });
 
-        console.log(`🌐 REST request: ${url.toString()}`);
-
         try {
             const response = await fetch(url);
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                throw new Error(`HTTP ${response.status}`);
             }
-            const data = await response.json();
-            console.log(`✅ REST response:`, data);
-            return data;
+            return await response.json();
         } catch (e) {
             console.error('❌ REST request failed:', e);
             throw e;
@@ -349,69 +398,174 @@ class RisexAPI {
         return this.restRequest('/api/v1/ticker', { symbol });
     }
 
-    async getTradesRest(symbol, limit = 100) {
+    async getTradesRest(symbol, limit = 50) {
         return this.restRequest('/api/v1/trades', { symbol, limit });
     }
 
-    async getKlineRest(symbol, interval, limit = 100) {
-        return this.restRequest('/api/v1/kline', { symbol, interval, limit });
+    // ============================================================
+    // UI UPDATES
+    // ============================================================
+
+    _updateOrderBookUI(data) {
+        if (!data || !data.bids || !data.asks) return;
+
+        const bidsContainer = document.getElementById('bids');
+        const asksContainer = document.getElementById('asks');
+        const bidEl = document.getElementById('bid');
+        const askEl = document.getElementById('ask');
+        const spreadEl = document.getElementById('spread');
+
+        if (bidsContainer && data.bids.length > 0) {
+            bidsContainer.innerHTML = data.bids.slice(0, 20).map(([price, size]) => `
+                <div class="order-row bid">
+                    <span class="price" style="color:#00ff88">$${Number(price).toFixed(2)}</span>
+                    <span class="size">${Number(size).toFixed(4)}</span>
+                    <div class="depth-bar" style="width:${Math.min(Number(size) / 10, 100)}%"></div>
+                </div>
+            `).join('');
+        }
+
+        if (asksContainer && data.asks.length > 0) {
+            asksContainer.innerHTML = data.asks.slice(0, 20).map(([price, size]) => `
+                <div class="order-row ask">
+                    <span class="price" style="color:#ff4444">$${Number(price).toFixed(2)}</span>
+                    <span class="size">${Number(size).toFixed(4)}</span>
+                    <div class="depth-bar" style="width:${Math.min(Number(size) / 10, 100)}%"></div>
+                </div>
+            `).join('');
+        }
+
+        if (bidEl && data.bids[0]) bidEl.textContent = Number(data.bids[0][0]).toFixed(2);
+        if (askEl && data.asks[0]) askEl.textContent = Number(data.asks[0][0]).toFixed(2);
+        if (spreadEl && data.bids[0] && data.asks[0]) {
+            spreadEl.textContent = (Number(data.asks[0][0]) - Number(data.bids[0][0])).toFixed(2);
+        }
+    }
+
+    _updateTickerUI(data) {
+        if (!data) return;
+
+        const priceEl = document.getElementById('price');
+        const lastPriceEl = document.getElementById('lastPrice');
+        const markPriceEl = document.getElementById('markPrice');
+        const volumeEl = document.getElementById('volume');
+        const openInterestEl = document.getElementById('openInterest');
+        const fundingRateEl = document.getElementById('fundingRate');
+
+        if (priceEl && data.lastPrice) {
+            priceEl.textContent = '$' + Number(data.lastPrice).toFixed(2);
+        }
+        if (lastPriceEl && data.lastPrice) {
+            lastPriceEl.textContent = '$' + Number(data.lastPrice).toFixed(2);
+        }
+        if (markPriceEl && data.markPrice) {
+            markPriceEl.textContent = '$' + Number(data.markPrice).toFixed(2);
+        }
+        if (volumeEl && data.volume) {
+            volumeEl.textContent = Number(data.volume).toFixed(2);
+        }
+        if (openInterestEl && data.openInterest) {
+            openInterestEl.textContent = Number(data.openInterest).toFixed(2);
+        }
+        if (fundingRateEl && data.fundingRate !== undefined) {
+            fundingRateEl.textContent = (Number(data.fundingRate) * 100).toFixed(4) + '%';
+        }
+    }
+
+    _updateTradesUI(data) {
+        if (!data || !data.trades || data.trades.length === 0) return;
+
+        const container = document.getElementById('trades-list');
+        if (!container) return;
+
+        container.innerHTML = data.trades.slice(0, 30).map(trade => `
+            <div class="trade-row ${trade.side === 'buy' ? 'buy' : 'sell'}">
+                <span class="price">$${Number(trade.price).toFixed(2)}</span>
+                <span class="size">${Number(trade.size).toFixed(4)}</span>
+                <span class="time">${new Date(trade.time).toLocaleTimeString()}</span>
+            </div>
+        `).join('');
     }
 
     // ============================================================
-    // CONTRACT METHODS
+    // LOAD SYSTEM CONFIG
     // ============================================================
 
     async loadSystemConfig() {
         const url = 'https://raw.githubusercontent.com/risechain/rise-contracts/main/config/mainnet.json';
-        console.log(`📥 Loading system config from: ${url}`);
-        
         try {
             const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const config = await response.json();
             console.log('✅ System config loaded:', config);
-            
             window.SYSTEM_CONFIG = config;
             
             if (config.contracts) {
                 window.RISEX_CONTRACTS = {
-                    usdc: config.contracts.usdc || '0xe436820ba0c69702c1d3e601d421c0ef38262739',
-                    perpsManager: config.contracts.perpsManager || '0x53f10facfc8965750494e6965f5d6da39b41d852',
-                    authorization: config.contracts.authorization || '0x0d919daa3f12ae715744eb648c00066c5dbd66f0',
-                    router: config.contracts.router || '0xaadde0cea454f2bcb26f46ed54c5709b7bb34a7e',
-                    ordersManager: config.contracts.ordersManager || '0xe03c1d5081eb2d0e6bfd62a949c5b12efa44f2cd'
+                    usdc: config.contracts.usdc,
+                    perpsManager: config.contracts.perpsManager,
+                    authorization: config.contracts.authorization,
+                    router: config.contracts.router,
+                    ordersManager: config.contracts.ordersManager
                 };
                 console.log('✅ RISEX_CONTRACTS:', window.RISEX_CONTRACTS);
             }
-            
             return config;
         } catch (e) {
             console.error('❌ Failed to load system config:', e);
-            window.RISEX_CONTRACTS = window.RISEX_CONTRACTS || {
-                usdc: '0xe436820ba0c69702c1d3e601d421c0ef38262739',
-                perpsManager: '0x53f10facfc8965750494e6965f5d6da39b41d852',
-                authorization: '0x0d919daa3f12ae715744eb648c00066c5dbd66f0',
-                router: '0xaadde0cea454f2bcb26f46ed54c5709b7bb34a7e',
-                ordersManager: '0xe03c1d5081eb2d0e6bfd62a949c5b12efa44f2cd'
-            };
             return null;
         }
     }
 }
 
 // ============================================================
-// EXPORT
+// === ГЛОБАЛЬНЫЙ ЭКСПОРТ (ОБЯЗАТЕЛЬНО!) ===
 // ============================================================
 
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = RisexAPI;
-}
-
-// Create global instance
+// Создаём экземпляр
 const risex = new RisexAPI();
+
+// ЭКСПОРТИРУЕМ В ГЛОБАЛЬНУЮ ОБЛАСТЬ
 window.risex = risex;
 
+// Также экспортируем основные методы для прямого доступа
+window.startOrderBook = function(symbol = 1) {
+    return risex.startOrderBook(symbol);
+};
+window.stopOrderBook = function() {
+    return risex.stopOrderBook();
+};
+window.connectRisex = function() {
+    return risex.connect();
+};
+window.disconnectRisex = function() {
+    return risex.disconnect();
+};
+
+// Добавляем информацию о состоянии
+window.risexState = {
+    isConnected: () => risex._isConnected,
+    wsUrl: risex._wsUrl,
+    currentSymbol: () => risex._currentSymbol
+};
+
+console.log('%c✅ risex global exposed', 'color:#00ff9d;font-size:16px;font-weight:bold;');
+console.log('📦 window.risex:', window.risex);
+console.log('🔌 WS URL:', risex._wsUrl);
+console.log('📡 Connected:', risex._isConnected);
+
+// ============================================================
+// АВТОМАТИЧЕСКИЙ ЗАПУСК (если нужно)
+// ============================================================
+
+// Можно раскомментировать для автостарта
+// setTimeout(() => {
+//     if (window.risex && !window.risex._isConnected) {
+//         console.log('🔄 Auto-connecting...');
+//         window.risex.connect().then(() => {
+//             window.risex.startOrderBook(1);
+//         }).catch(e => console.warn('Auto-connect failed:', e));
+//     }
+// }, 1000);
+
 console.log('✅ RisexAPI initialized and ready');
-console.log('🔍 Final WS URL:', risex._wsUrl);
