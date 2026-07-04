@@ -1,237 +1,230 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PLOV Scalping Terminal v3.0</title>
-    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" defer></script>
-    <link rel="stylesheet" href="css/style.css">
+    <title>🚀 PLOV Scalping Terminal v3.0</title>
+    
+    <!-- STYLES -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0e17;
+            color: #c8d6e5;
+            font-family: 'Courier New', monospace;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #app {
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            grid-template-rows: 50px 1fr 200px;
+            gap: 2px;
+            height: 100vh;
+            padding: 2px;
+            background: #0d1520;
+        }
+        
+        .panel {
+            background: #111927;
+            border: 1px solid #1a2a3a;
+            border-radius: 4px;
+            padding: 8px;
+            overflow: hidden;
+        }
+        
+        .panel-header {
+            font-size: 11px;
+            color: #4a6a8a;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #1a2a3a;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+        }
+        
+        #header {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            background: #111927;
+            border-bottom: 1px solid #1a2a3a;
+        }
+        
+        #header .title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        
+        #header .status {
+            font-size: 12px;
+        }
+        
+        #header .controls button {
+            background: #1a2a3a;
+            border: 1px solid #2a4a5a;
+            color: #c8d6e5;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+        }
+        
+        #header .controls button:hover {
+            background: #2a4a5a;
+        }
+        
+        #orderbook {
+            grid-row: 2 / 4;
+            overflow-y: auto;
+        }
+        
+        #orderbook .order-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            padding: 2px 4px;
+            position: relative;
+        }
+        
+        #orderbook .order-row .depth-bar {
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            opacity: 0.15;
+            background: currentColor;
+        }
+        
+        #orderbook .order-row.bid .price { color: #00ff88; }
+        #orderbook .order-row.ask .price { color: #ff4444; }
+        
+        #price-panel {
+            grid-column: 2;
+            grid-row: 2;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+        }
+        
+        #price-panel .price-item {
+            text-align: center;
+            padding: 4px;
+            background: #0d1520;
+            border-radius: 4px;
+        }
+        
+        #price-panel .price-item .label {
+            font-size: 10px;
+            color: #4a6a8a;
+        }
+        
+        #price-panel .price-item .value {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        #price-panel .price-item .value.green { color: #00ff88; }
+        #price-panel .price-item .value.red { color: #ff4444; }
+        
+        #chart {
+            grid-column: 2;
+            grid-row: 3;
+            background: #0d1520;
+        }
+        
+        #trades {
+            grid-row: 2 / 4;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        
+        #trades .trade-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 4px;
+            border-bottom: 1px solid #0d1520;
+        }
+        
+        #trades .trade-row.buy .price { color: #00ff88; }
+        #trades .trade-row.sell .price { color: #ff4444; }
+        
+        #account {
+            grid-column: 1;
+            grid-row: 1;
+            font-size: 12px;
+        }
+        
+        #account .balance-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+        }
+        
+        #positions-orders {
+            grid-column: 3;
+            grid-row: 1;
+            font-size: 12px;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0d1520;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1a2a3a;
+            border-radius: 2px;
+        }
+        
+        @media (max-width: 1024px) {
+            #app {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto;
+                overflow-y: auto;
+            }
+        }
+    </style>
 </head>
 <body>
-
-<!-- TOP BAR -->
-<div class="top-bar">
-    <div class="logo">⚡ PLOV <span class="accent">Scalping</span> <span class="version">v3.0</span></div>
-    <div class="top-center">
-        <span class="market-label">BTC-PERP</span>
-        <span class="top-price" id="top-price">---</span>
-        <span class="top-change" id="top-change">+0.00%</span>
-    </div>
-    <div class="top-right">
-        <div class="lang-selector">
-            <button class="lang-btn" data-lang="ru" onclick="setLanguage('ru')">RU</button>
-            <button class="lang-btn active" data-lang="en" onclick="setLanguage('en')">EN</button>
-            <button class="lang-btn" data-lang="zh" onclick="setLanguage('zh')">中文</button>
-        </div>
-        <span class="status-badge offline" id="status-badge">● Offline</span>
-        <button class="btn-icon" id="theme-toggle" onclick="toggleTheme()">☀️</button>
-
-        <div class="settings-wrap">
-            <button class="btn-icon" id="btn-settings" onclick="toggleSettings()">⚙️</button>
-
-            <div class="welcome-bubble" id="welcome-bubble">
-                <div class="bubble-arrow"></div>
+    <div id="app">
+        <!-- HEADER -->
+        <div id="header">
+            <div class="title">🚀 PLOV Scalping v3.0</div>
+            <div class="status">
+                <span id="status">🔄 Connecting...</span>
+                <span style="margin-left:16px;color:#4a6a8a;">|</span>
+                <span id="price" style="margin-left:16px;font-weight:bold;">$0.00</span>
             </div>
-
-            <div class="settings-panel" id="settings-panel">
-                <div class="settings-title">⚙️ Settings</div>
-
-                <div class="settings-language">
-                    <span class="security-section-title">🌐 Language</span>
-                    <div class="lang-selector-panel">
-                        <button class="lang-btn" data-lang="ru" onclick="setLanguage('ru');closeSettings()">RU</button>
-                        <button class="lang-btn active" data-lang="en" onclick="setLanguage('en');closeSettings()">EN</button>
-                        <button class="lang-btn" data-lang="zh" onclick="setLanguage('zh');closeSettings()">中文</button>
-                    </div>
-                </div>
-
-                <div class="settings-divider"></div>
-
-                <button class="btn-help" id="btn-show-bubble" onclick="showBubbleManual()">❓ Help</button>
-            </div>
-        </div>
-
-        <button class="btn-auth" id="btn-auth" onclick="handleAuth()">🔑 Sign in</button>
-    </div>
-</div>
-
-<!-- MAIN GRID -->
-<div class="main-grid">
-
-    <!-- LEFT: Order Book -->
-    <div class="panel panel-left">
-        <div class="panel-title" id="ob-panel-title">📊 Order Book <span class="badge-live" id="ob-live">LIVE</span></div>
-        <div class="ob-header">
-            <span id="ob-price-label">Price</span>
-            <span id="ob-vol-label">Size</span>
-            <span id="ob-total-label">Total</span>
-        </div>
-        <div class="ob-asks" id="asks-container"><div class="ob-placeholder">Loading...</div></div>
-        <div class="ob-spread"><span id="spread-label">Spread: </span><span id="spread-value">---</span></div>
-        <div class="ob-bids" id="bids-container"><div class="ob-placeholder">Loading...</div></div>
-    </div>
-
-    <!-- CENTER -->
-    <div class="panel panel-center">
-        <div class="price-row">
-            <div class="price-main">
-                <span class="price-value" id="btc-price">---</span>
-                <span class="price-unit">USDC</span>
-            </div>
-            <div class="price-meta">
-                <span class="price-change" id="price-change">+0.00%</span>
-                <span class="price-funding" id="funding-rate">FR: ---</span>
-            </div>
-        </div>
-
-        <div class="chart-wrap">
-            <div class="chart-container" id="chart-container"></div>
-            <div class="chart-labels">
-                <span id="chart-high">H: ---</span>
-                <span id="chart-low">L: ---</span>
-            </div>
-        </div>
-
-        <div class="leverage-row" id="leverage-row">
-            <span class="lev-label" id="lev-label-text">Leverage:</span>
-            <div class="lev-btns">
-                <button class="lev-btn active" data-lev="1"  onclick="setLeverage(1)">1×</button>
-                <button class="lev-btn"         data-lev="2"  onclick="setLeverage(2)">2×</button>
-                <button class="lev-btn"         data-lev="5"  onclick="setLeverage(5)">5×</button>
-                <button class="lev-btn"         data-lev="10" onclick="setLeverage(10)">10×</button>
-                <button class="lev-btn"         data-lev="25" onclick="setLeverage(25)">25×</button>
-            </div>
-        </div>
-
-        <div class="amount-row">
-            <div class="amount-input-wrap">
-                <input type="number" id="amount-input" placeholder="Amount USDC" min="0" step="1">
-                <span class="amount-unit">USDC</span>
-            </div>
-            <div class="quick-pct">
-                <button class="pct-btn" onclick="setPct(25)">25%</button>
-                <button class="pct-btn" onclick="setPct(50)">50%</button>
-                <button class="pct-btn" onclick="setPct(75)">75%</button>
-                <button class="pct-btn" onclick="setPct(100)">MAX</button>
-            </div>
-        </div>
-
-        <div class="trade-btns">
-            <button class="btn-buy" id="btn-buy" onclick="handleBuyClick()">
-                <span class="btn-label">📈 LONG</span>
-                <span class="btn-sub" id="buy-sub">Open long</span>
-            </button>
-            <button class="btn-sell" id="btn-sell" onclick="handleSellClick()">
-                <span class="btn-label">📉 SHORT</span>
-                <span class="btn-sub" id="sell-sub">Open short</span>
-            </button>
-        </div>
-
-        <div class="hotkeys" id="hotkeys-text">
-            <kbd>B</kbd> LONG &nbsp; <kbd>S</kbd> SHORT &nbsp; <kbd>Esc</kbd> Reset
-        </div>
-
-        <div class="log-wrap">
-            <div class="log-tabs">
-                <button class="log-tab active" id="tab-log"      onclick="switchLogTab('log')">📋 Log</button>
-                <button class="log-tab"         id="tab-trades"   onclick="switchLogTab('trades')">⚡ Trades</button>
-                <button class="log-tab"         id="tab-mytrades" onclick="switchLogTab('mytrades')">💼 My Trades</button>
-            </div>
-            <div class="log-pane" id="pane-log">
-                <div class="trade-log" id="trade-log">
-                    <div class="log-line muted">⏳ Loading...</div>
-                </div>
-            </div>
-            <div class="log-pane" id="pane-trades" style="display:none">
-                <div class="my-trades-header-inline" id="trades-header">
-                    <span>Price</span><span>Size</span><span>Time</span>
-                </div>
-                <div class="market-trades-list" id="market-trades-list"></div>
-            </div>
-            <div class="log-pane" id="pane-mytrades" style="display:none">
-                <div class="my-trades-header-inline" id="mytrades-header">
-                    <span>Side</span><span>Price</span><span>Size</span><span>Lev</span><span>PnL</span><span>Time</span>
-                </div>
-                <div class="my-trades-list-inline" id="my-trades-list">
-                    <div class="no-trades muted">No trades yet</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- RIGHT -->
-    <div class="panel panel-right">
-
-        <!-- Signer Key section -->
-        <div class="section" id="signer-section">
-            <div class="section-title" id="signer-title">🔑 RISEx API Key</div>
-            <div id="signer-not-connected">
-                <p class="signer-hint" id="signer-hint-text">
-                    Connect your RISEx Signer Key to start real trading.
-                </p>
-                <button class="btn-rise-api" onclick="openRiseApiPage()">
-                    <span id="btn-rise-api-text">Get API Key on rise.trade</span> ↗
+            <div class="controls">
+                <button onclick="window.__state?.isTrading ? stopTrading() : startTrading()">
+                    <span id="tradeBtn">▶ Start</span>
                 </button>
-                <div class="signer-input-row">
-                    <input type="password" id="signer-key-input" placeholder="0x... (private key)" autocomplete="off">
-                    <button class="btn-sm btn-green" onclick="saveSignerKey()" id="btn-save-signer">Save</button>
-                </div>
-                <p class="signer-security-note" id="signer-security-note">
-                    🔒 Stored locally in your browser only. Never sent to our servers.
-                </p>
-            </div>
-            <div id="signer-connected" style="display:none">
-                <div class="signer-connected-row">
-                    <span class="signer-status-dot"></span>
-                    <span id="signer-address-short">---</span>
-                    <button class="btn-copy" onclick="copySignerAddress()">⧉</button>
-                </div>
-                <button class="btn-sm btn-red" onclick="disconnectSigner()" id="btn-disconnect-signer">Disconnect</button>
+                <button onclick="location.reload()">⟳</button>
             </div>
         </div>
 
-        <!-- Balance -->
-        <div class="section">
-            <div class="section-title" id="balance-title">💰 Balance</div>
-            <div class="balances">
-                <div class="bal-row"><span class="bal-label" id="bal-label-usdc">USDC (RISEx)</span><span class="bal-val green" id="bal-risex">0.00</span></div>
-            </div>
+        <!-- ACCOUNT -->
+        <div id="account" class="panel">
+            <div class="panel-header">📊 Account</div>
+            <div class="balance-item"><span>Balance</span><span id="balance">$0.00</span></div>
+            <div class="balance-item"><span>Equity</span><span id="equity">$0.00</span></div>
+            <div class="balance-item"><span>P&L</span><span id="pnl">$0.00</span></div>
+            <div class="balance-item"><span>P&L %</span><span id="pnlPercent">0.00%</span></div>
         </div>
 
-        <div class="section">
-            <div class="section-title" id="position-title">📦 Position</div>
-            <div class="pos-row"><span class="pos-label" id="pos-label-side">Side</span><span class="pos-val" id="pos-side">---</span></div>
-            <div class="pos-row"><span class="pos-label" id="pos-label-size">Size</span><span class="pos-val" id="pos-size">---</span></div>
-            <div class="pos-row"><span class="pos-label" id="pos-label-entry">Entry</span><span class="pos-val" id="pos-entry">---</span></div>
-            <div class="pos-row"><span class="pos-label" id="pos-label-liq">Liquidation</span><span class="pos-val red" id="pos-liq">---</span></div>
-            <div class="pos-row"><span class="pos-label" id="pos-label-pnl">PnL</span><span class="pos-val" id="pos-pnl">+0.00</span></div>
-            <button class="btn-close-pos" id="btn-close-pos" onclick="closePosition()" style="display:none">✕ Close position</button>
-        </div>
-
-        <div class="section">
-            <div class="section-title" id="stats-title">📊 Statistics</div>
-            <div class="pos-row"><span class="pos-label" id="stat-label-trades">Trades</span><span class="pos-val" id="stat-trades">0</span></div>
-            <div class="pos-row"><span class="pos-label" id="stat-label-winrate">Winrate</span><span class="pos-val" id="stat-winrate">0%</span></div>
-            <div class="pos-row"><span class="pos-label" id="stat-label-volume">Volume</span><span class="pos-val" id="stat-volume">0</span></div>
-            <div class="pos-row"><span class="pos-label" id="stat-label-best">Best</span><span class="pos-val green" id="stat-best">---</span></div>
-            <div class="pos-row"><span class="pos-label" id="stat-label-worst">Worst</span><span class="pos-val red" id="stat-worst">---</span></div>
-        </div>
-    </div>
-</div>
-
-<div class="toast" id="toast"></div>
-
-<script src="js/config.js?v=3"></script>
-<script src="js/abi.js"></script>
-<script src="js/i18n.js"></script>
-<script src="js/security.js"></script>
-<script src="js/signer.js"></script>
-<script src="js/auth.js"></script>
-<script src="js/risex.js?v=3"></script>
-<script src="js/trading.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/main.js"></script>
-</body>
-</html>
+        <!-- ORDERBOOK -->
+        <div id="orderbook" class="panel">
+            <div class="panel-header">📖 Order Book <span style="float:right;font-weight:normal;">
+                <span id="bid" style="color:#00ff88;">0.00
