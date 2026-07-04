@@ -227,4 +227,84 @@
         <!-- ORDERBOOK -->
         <div id="orderbook" class="panel">
             <div class="panel-header">📖 Order Book <span style="float:right;font-weight:normal;">
-                <span id="bid" style="color:#00ff88;">0.00
+                <span id="bid" style="color:#00ff88;">0.00</span> / 
+                <span id="ask" style="color:#ff4444;">0.00</span>
+                <span style="color:#4a6a8a;">| Spread: </span>
+                <span id="spread">0.00</span>
+            </span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;height:calc(100% - 30px);">
+                <div id="bids"></div>
+                <div id="asks"></div>
+            </div>
+        </div>
+
+        <!-- PRICE PANEL -->
+        <div id="price-panel" class="panel">
+            <div class="price-item">
+                <div class="label">Mark Price</div>
+                <div class="value" id="markPrice">$0.00</div>
+            </div>
+            <div class="price-item">
+                <div class="label">Last Price</div>
+                <div class="value" id="lastPrice">$0.00</div>
+            </div>
+            <div class="price-item">
+                <div class="label">Volume</div>
+                <div class="value" id="volume">0.00</div>
+            </div>
+            <div class="price-item">
+                <div class="label">Open Interest</div>
+                <div class="value" id="openInterest">0.00</div>
+            </div>
+            <div class="price-item" style="grid-column:1/-1;">
+                <div class="label">Funding Rate</div>
+                <div class="value" id="fundingRate">0.0000%</div>
+            </div>
+        </div>
+
+        <!-- CHART -->
+        <div id="chart" class="panel">
+            <div class="panel-header">📈 Chart <span style="float:right;font-weight:normal;color:#4a6a8a;">
+                <span id="symbol">BTCUSDT</span> <span id="timeframe">1m</span>
+            </span></div>
+        </div>
+
+        <!-- TRADES -->
+        <div id="trades" class="panel">
+            <div class="panel-header">📋 Recent Trades</div>
+            <div id="trades-list"></div>
+        </div>
+
+        <!-- POSITIONS & ORDERS -->
+        <div id="positions-orders" class="panel">
+            <div class="panel-header">📦 Positions & Orders</div>
+            <div id="positions" style="font-size:11px;color:#4a6a8a;padding:4px;">No open positions</div>
+            <div style="border-top:1px solid #1a2a3a;margin:4px 0;"></div>
+            <div id="orders" style="font-size:11px;color:#4a6a8a;padding:4px;">No active orders</div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS - IMPORTANT ORDER -->
+    <script src="js/config.js"></script>
+    <script src="js/risex.js"></script>
+    <script src="js/main.js"></script>
+    
+    <script>
+        // Emergency override if still not working
+        (function() {
+            console.log('🛡️ Final safety check...');
+            if (window.RISEX_API && window.RISEX_API.ws && window.RISEX_API.ws.includes('testnet')) {
+                console.error('❌ CRITICAL: Still testnet! Forcing mainnet...');
+                window.RISEX_API.ws = 'wss://ws.rise.trade/ws';
+                if (window.risex && window.risex._wsUrl) {
+                    window.risex._wsUrl = 'wss://ws.rise.trade/ws';
+                }
+            }
+            console.log('✅ Final config:', {
+                WS: window.RISEX_API?.ws,
+                USE_MAINNET: window.USE_MAINNET
+            });
+        })();
+    </script>
+</body>
+</html>
