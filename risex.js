@@ -218,6 +218,28 @@ function startOrderBook(marketId = 1) {
     if (_obRunning) stopOrderBook();
     _obRunning = true;
     _connectWS(marketId);
+
+    // Polling fallback — если WS не работает, берём данные из REST
+    if (window._obPollInterval) clearInterval(window._obPollInterval);
+    window._obPollInterval = setInterval(async () => {
+        if (_ws && _ws.readyState === WebSocket.OPEN) return;
+        try {
+            const res  = await fetch(`${RISEX_API.rest}/v1/markets`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const mkts = data.data?.markets || data.markets || [];
+            const mkt  = mkts.find(m => String(m.market_id) === String(marketId));
+            if (!mkt) return;
+            const norm = v => { const n = parseFloat(v); return n > 1e15 ? n / 1e18 : n; };
+            const price = norm(mkt.mark_price || mkt.last_price || mkt.index_price || 0);
+            if (price > 0) { lastPrice = price; updatePriceUI(price); }
+            if (mkt.funding_rate !== undefined) {
+                const fr = (parseFloat(mkt.funding_rate) * 100).toFixed(4);
+                const frEl = document.getElementById('funding-rate');
+                if (frEl) frEl.textContent = `FR: ${fr}%`;
+            }
+        } catch {}
+    }, 3000);
 }
 
 function stopOrderBook() {
@@ -230,38 +252,27 @@ function stopOrderBook() {
 
 function _connectWS(marketId) {
     if (!_obRunning) return;
+
+    // Всегда mainnet в продакшене
+    const wsUrl = (typeof USE_MAINNET !== 'undefined' && USE_MAINNET)
+        ? 'wss://ws.rise.trade/ws'
+        : (RISEX_API.ws || 'wss://ws.rise.trade/ws');
+
+    console.log('WS connecting to:', wsUrl);
+
     try {
-        // Всегда используем mainnet WS
-        const wsUrl = (RISEX_API.ws || '').replace('testnet.', '').replace('ws.testnet', 'ws');
         _ws = new WebSocket(wsUrl);
 
         _ws.onopen = () => {
+            console.log('WS connected to', wsUrl);
             addToLog(t('ws_connected'), 'meta');
             const live = document.getElementById('ob-live');
             if (live) { live.textContent = 'LIVE'; live.style.color = 'var(--green)'; }
 
-            // Правильный формат из SDK: {method, params}
-            _ws.send(JSON.stringify({
-                method: 'subscribe',
-                params: { channel: 'orderbook', market_ids: [marketId] }
-            }));
-            _ws.send(JSON.stringify({
-                method: 'subscribe',
-                params: { channel: 'trades', market_ids: [marketId] }
-            }));
-            _ws.send(JSON.stringify({
-                method: 'subscribe',
-                params: { channel: 'ticker', market_ids: [marketId] }
-            }));
+            _ws.send(JSON.stringify({ method: 'subscribe', params: { channel: 'orderbook', market_ids: [marketId] } }));
+            _ws.send(JSON.stringify({ method: 'subscribe', params: { channel: 'trades',    market_ids: [marketId] } }));
+            _ws.send(JSON.stringify({ method: 'subscribe', params: { channel: 'ticker',    market_ids: [marketId] } }));
 
-            if (isLoggedIn && signerAddress) {
-                _ws.send(JSON.stringify({
-                    method: 'subscribe',
-                    params: { channel: 'positions', account: signerAddress }
-                }));
-            }
-
-            // Heartbeat каждые 15 сек как в SDK
             if (window._wsHeartbeat) clearInterval(window._wsHeartbeat);
             window._wsHeartbeat = setInterval(() => {
                 if (_ws && _ws.readyState === WebSocket.OPEN) {
@@ -281,10 +292,13 @@ function _connectWS(marketId) {
             _wsReconnTimer = setTimeout(() => _connectWS(marketId), 3000);
         };
 
-        _ws.onerror = () => { try { _ws.close(); } catch {} };
+        _ws.onerror = (e) => {
+            console.warn('WS error:', e);
+            try { _ws.close(); } catch {}
+        };
 
     } catch (e) {
-        addToLog('❌ WS ошибка: ' + e.message, 'error');
+        console.error('WS connect failed:', e.message);
         _wsReconnTimer = setTimeout(() => _connectWS(marketId), 5000);
     }
 }
