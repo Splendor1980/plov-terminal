@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🚀 PLOV Scalping Terminal v3.0</title>
     
-    <!-- STYLES -->
     <style>
         * {
             margin: 0;
@@ -188,11 +187,22 @@
             border-radius: 2px;
         }
         
+        .loading {
+            color: #4a6a8a;
+            text-align: center;
+            padding: 20px;
+            font-size: 14px;
+        }
+        
         @media (max-width: 1024px) {
             #app {
                 grid-template-columns: 1fr;
                 grid-template-rows: auto;
                 overflow-y: auto;
+                height: auto;
+            }
+            .panel {
+                min-height: 200px;
             }
         }
     </style>
@@ -208,7 +218,7 @@
                 <span id="price" style="margin-left:16px;font-weight:bold;">$0.00</span>
             </div>
             <div class="controls">
-                <button onclick="window.__state?.isTrading ? stopTrading() : startTrading()">
+                <button onclick="if(window.risex) window.risex.startOrderBook(1); else location.reload();">
                     <span id="tradeBtn">▶ Start</span>
                 </button>
                 <button onclick="location.reload()">⟳</button>
@@ -235,8 +245,8 @@
                 <span id="spread">0.00</span>
             </span></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;height:calc(100% - 30px);">
-                <div id="bids"></div>
-                <div id="asks"></div>
+                <div id="bids"><div class="loading">Loading bids...</div></div>
+                <div id="asks"><div class="loading">Loading asks...</div></div>
             </div>
         </div>
 
@@ -269,247 +279,195 @@
             <div class="panel-header">📈 Chart <span style="float:right;font-weight:normal;color:#4a6a8a;">
                 <span id="symbol">BTCUSDT</span> <span id="timeframe">1m</span>
             </span></div>
+            <div style="display:flex;align-items:center;justify-content:center;height:calc(100% - 30px);color:#4a6a8a;font-size:12px;">
+                📊 Chart placeholder
+            </div>
         </div>
 
         <!-- TRADES -->
         <div id="trades" class="panel">
             <div class="panel-header">📋 Recent Trades</div>
-            <div id="trades-list"></div>
+            <div id="trades-list"><div class="loading">No trades yet</div></div>
         </div>
 
         <!-- POSITIONS & ORDERS -->
         <div id="positions-orders" class="panel">
             <div class="panel-header">📦 Positions & Orders</div>
-            <div id="positions" style="font-size:11px;color:#4a6a8a;padding:4px;">No open positions</div>
+            <div style="font-size:11px;color:#4a6a8a;padding:4px;">No open positions</div>
             <div style="border-top:1px solid #1a2a3a;margin:4px 0;"></div>
-            <div id="orders" style="font-size:11px;color:#4a6a8a;padding:4px;">No active orders</div>
+            <div style="font-size:11px;color:#4a6a8a;padding:4px;">No active orders</div>
         </div>
     </div>
 
     <!-- ============================================================ -->
-    <!-- SCRIPTS - ВАЖНЫЙ ПОРЯДОК ЗАГРУЗКИ -->
+    <!-- СКРИПТЫ -->
     <!-- ============================================================ -->
     
-    <!-- 1. КОНФИГ (самый первый) -->
     <script src="js/config.js"></script>
-    
-    <!-- 2. RISEX API -->
     <script src="js/risex.js"></script>
-    
-    <!-- 3. ОСНОВНОЙ СКРИПТ -->
     <script src="js/main.js"></script>
-    
+
     <!-- ============================================================ -->
-    <!-- 4. ЭКСТРЕННЫЙ ФИКС (добавлен в конце для гарантии) -->
+    <!-- ЭКСТРЕННЫЙ ФИКС С ЗАПУСКОМ startOrderBook -->
     <!-- ============================================================ -->
     <script>
         (function() {
             'use strict';
             
-            console.log('🛠️ RUNNING EMERGENCY FIX...');
+            console.log('🛠️ EMERGENCY FIX RUNNING...');
             console.log('🕐 Time:', new Date().toISOString());
-            
-            // 1. Принудительно пересоздаём WebSocket
+
+            // 1. Перехват WebSocket
             const ORIGINAL_WS = window.WebSocket;
             window.WebSocket = function(url, protocols) {
-                // Логируем оригинальный URL
-                console.log('🔍 WebSocket constructor called with URL:', url);
-                
-                if (typeof url === 'string') {
-                    // Заменяем любой testnet на mainnet
-                    if (url.includes('testnet')) {
-                        console.warn('⚠️ INTERCEPTED testnet URL:', url);
-                        url = url.replace(/testnet\.rise\.trade/g, 'rise.trade');
-                        url = url.replace(/ws\.testnet/g, 'ws');
-                        console.log('✅ CHANGED TO:', url);
-                    }
-                    // Если пустой URL - ставим mainnet
-                    if (url === '' || url === 'undefined' || !url || url === 'null') {
-                        url = 'wss://ws.rise.trade/ws';
-                        console.log('✅ SET DEFAULT URL:', url);
-                    }
+                if (typeof url === 'string' && url.includes('testnet')) {
+                    console.warn('⚠️ INTERCEPTED testnet URL:', url);
+                    url = url.replace(/testnet\.rise\.trade/g, 'rise.trade');
+                    url = url.replace(/ws\.testnet/g, 'ws');
+                    console.log('✅ CHANGED TO:', url);
                 }
-                
-                // Создаём WebSocket
+                if (!url || url === '' || url === 'undefined') {
+                    url = 'wss://ws.rise.trade/ws';
+                }
                 const ws = new ORIGINAL_WS(url, protocols);
-                
-                // Добавляем логирование на открытие
-                const originalOnOpen = ws.onopen;
-                ws.onopen = function(event) {
-                    console.log('✅✅✅ WEBSOCKET OPENED SUCCESSFULLY! URL:', url);
-                    if (originalOnOpen) originalOnOpen.call(this, event);
-                };
-                
-                // Логируем ошибки
-                const originalOnError = ws.onerror;
-                ws.onerror = function(event) {
-                    console.error('❌❌❌ WEBSOCKET ERROR! URL:', url, event);
-                    if (originalOnError) originalOnError.call(this, event);
-                };
-                
                 console.log('🟢 WebSocket created with URL:', url);
                 return ws;
             };
             window.WebSocket.prototype = ORIGINAL_WS.prototype;
 
-            // 2. Форсируем глобальные переменные
+            // 2. Форсируем конфиги
             window.USE_MAINNET = true;
             window.FORCE_MAINNET_WS = true;
-            
             if (window.RISEX_API) {
                 window.RISEX_API.ws = 'wss://ws.rise.trade/ws';
-                console.log('✅ RISEX_API.ws forced to:', window.RISEX_API.ws);
-            }
-            
-            if (window.risex) {
-                window.risex._wsUrl = 'wss://ws.rise.trade/ws';
-                console.log('✅ risex._wsUrl forced to:', window.risex._wsUrl);
             }
 
-            // 3. Проверяем через 2 секунды и подключаем
-            setTimeout(() => {
-                console.log('🔍 CHECK AFTER 2s:');
-                console.log('  - window.USE_MAINNET:', window.USE_MAINNET);
-                console.log('  - window.RISEX_API?.ws:', window.RISEX_API?.ws);
-                console.log('  - window.risex?._wsUrl:', window.risex?._wsUrl);
-                console.log('  - window.risex?._isConnected:', window.risex?._isConnected);
+            // 3. Ждём загрузки risex
+            let waitCount = 0;
+            const maxWait = 30; // 30 секунд максимум
+            
+            function waitForRisexAndStart() {
+                waitCount++;
+                console.log(`⏳ Waiting for risex... (${waitCount}s)`);
                 
-                // Обновляем статус
-                const statusEl = document.getElementById('status');
-                if (statusEl) {
-                    statusEl.textContent = '🔄 Connecting...';
-                    statusEl.style.color = '#ffaa00';
+                // Проверяем, появился ли risex
+                if (window.risex && typeof window.risex.startOrderBook === 'function') {
+                    console.log('✅ risex found! Starting order book...');
+                    console.log('📦 window.risex:', window.risex);
+                    
+                    // Обновляем статус
+                    const statusEl = document.getElementById('status');
+                    if (statusEl) {
+                        statusEl.textContent = '🔄 Connecting...';
+                        statusEl.style.color = '#ffaa00';
+                    }
+                    
+                    // Подключаемся
+                    window.risex.connect()
+                        .then(() => {
+                            console.log('✅ Connected! Starting order book...');
+                            window.risex.startOrderBook(1); // BTC
+                            
+                            if (statusEl) {
+                                statusEl.textContent = '🟢 Connected';
+                                statusEl.style.color = '#00ff88';
+                            }
+                        })
+                        .catch(e => {
+                            console.error('❌ Connection failed:', e);
+                            // Пробуем REST только
+                            console.log('🔄 Trying REST-only mode...');
+                            if (window.risex._restEnabled !== false) {
+                                window.risex.startOrderBook(1);
+                            }
+                            if (statusEl) {
+                                statusEl.textContent = '⚠️ REST mode';
+                                statusEl.style.color = '#ffaa00';
+                            }
+                        });
+                    
+                    return;
                 }
                 
-                // Принудительно подключаем, если не подключено
-                if (window.risex) {
-                    if (!window.risex._isConnected) {
-                        console.log('🔄 Forcing connection...');
+                // Проверяем через глобальные функции
+                if (typeof window.startOrderBook === 'function') {
+                    console.log('✅ window.startOrderBook found!');
+                    window.startOrderBook(1);
+                    return;
+                }
+                
+                // Если прошло слишком много времени - пробуем создать вручную
+                if (waitCount > maxWait) {
+                    console.error('❌ risex not loaded after 30s!');
+                    console.log('🔧 Creating risex manually...');
+                    
+                    // Пытаемся создать экземпляр вручную
+                    if (typeof RisexAPI !== 'undefined') {
+                        window.risex = new RisexAPI();
+                        window.risex.startOrderBook = window.risex.startOrderBook.bind(window.risex);
+                        window.risex.connect = window.risex.connect.bind(window.risex);
+                        console.log('✅ Manual risex created:', window.risex);
+                        
+                        // Запускаем
                         window.risex.connect()
-                            .then(() => {
-                                console.log('✅✅✅ Connected after force!');
-                                
-                                // Обновляем статус
-                                if (statusEl) {
-                                    statusEl.textContent = '🟢 Connected';
-                                    statusEl.style.color = '#00ff88';
-                                }
-                                
-                                // Подписываемся на данные
-                                console.log('📡 Subscribing to data streams...');
-                                
-                                window.risex.getOrderBook('BTCUSDT', (data) => {
-                                    console.log('📊 OrderBook received:', data);
-                                    // Обновляем UI
-                                    if (data.bids && data.asks) {
-                                        const bidEl = document.getElementById('bid');
-                                        const askEl = document.getElementById('ask');
-                                        const spreadEl = document.getElementById('spread');
-                                        
-                                        if (bidEl && data.bids[0]) {
-                                            bidEl.textContent = data.bids[0][0].toFixed(2);
-                                        }
-                                        if (askEl && data.asks[0]) {
-                                            askEl.textContent = data.asks[0][0].toFixed(2);
-                                        }
-                                        if (spreadEl && data.bids[0] && data.asks[0]) {
-                                            spreadEl.textContent = (data.asks[0][0] - data.bids[0][0]).toFixed(2);
-                                        }
-                                        
-                                        // Рендерим стакан
-                                        const bidsContainer = document.getElementById('bids');
-                                        const asksContainer = document.getElementById('asks');
-                                        
-                                        if (bidsContainer) {
-                                            bidsContainer.innerHTML = data.bids.slice(0, 20).map(([price, size]) => `
-                                                <div class="order-row bid">
-                                                    <span class="price" style="color:#00ff88">$${price.toFixed(2)}</span>
-                                                    <span class="size">${size.toFixed(4)}</span>
-                                                    <div class="depth-bar" style="width:${Math.min(size / 10, 100)}%"></div>
-                                                </div>
-                                            `).join('');
-                                        }
-                                        
-                                        if (asksContainer) {
-                                            asksContainer.innerHTML = data.asks.slice(0, 20).map(([price, size]) => `
-                                                <div class="order-row ask">
-                                                    <span class="price" style="color:#ff4444">$${price.toFixed(2)}</span>
-                                                    <span class="size">${size.toFixed(4)}</span>
-                                                    <div class="depth-bar" style="width:${Math.min(size / 10, 100)}%"></div>
-                                                </div>
-                                            `).join('');
-                                        }
-                                    }
-                                });
-                                
-                                window.risex.getTicker('BTCUSDT', (data) => {
-                                    console.log('📈 Ticker received:', data);
-                                    const priceEl = document.getElementById('price');
-                                    const markPriceEl = document.getElementById('markPrice');
-                                    const lastPriceEl = document.getElementById('lastPrice');
-                                    const volumeEl = document.getElementById('volume');
-                                    const openInterestEl = document.getElementById('openInterest');
-                                    const fundingRateEl = document.getElementById('fundingRate');
-                                    
-                                    if (priceEl && data.lastPrice) {
-                                        priceEl.textContent = '$' + data.lastPrice.toFixed(2);
-                                    }
-                                    if (markPriceEl && data.markPrice) {
-                                        markPriceEl.textContent = '$' + data.markPrice.toFixed(2);
-                                    }
-                                    if (lastPriceEl && data.lastPrice) {
-                                        lastPriceEl.textContent = '$' + data.lastPrice.toFixed(2);
-                                    }
-                                    if (volumeEl && data.volume) {
-                                        volumeEl.textContent = data.volume.toFixed(2);
-                                    }
-                                    if (openInterestEl && data.openInterest) {
-                                        openInterestEl.textContent = data.openInterest.toFixed(2);
-                                    }
-                                    if (fundingRateEl && data.fundingRate !== undefined) {
-                                        fundingRateEl.textContent = (data.fundingRate * 100).toFixed(4) + '%';
-                                    }
-                                });
-                                
-                                window.risex.getTrades('BTCUSDT', (data) => {
-                                    console.log('📋 Trades received:', data);
-                                    const tradesList = document.getElementById('trades-list');
-                                    if (tradesList && data.trades) {
-                                        tradesList.innerHTML = data.trades.slice(0, 30).map(trade => `
-                                            <div class="trade-row ${trade.side === 'buy' ? 'buy' : 'sell'}">
-                                                <span class="price">$${trade.price.toFixed(2)}</span>
-                                                <span class="size">${trade.size.toFixed(4)}</span>
-                                                <span class="time">${new Date(trade.time).toLocaleTimeString()}</span>
-                                            </div>
-                                        `).join('');
-                                    }
-                                });
-                            })
+                            .then(() => window.risex.startOrderBook(1))
                             .catch(e => {
-                                console.error('❌ Force connection failed:', e);
-                                console.error('❌ Error details:', e.message);
-                                if (statusEl) {
-                                    statusEl.textContent = '❌ Connection Failed';
-                                    statusEl.style.color = '#ff4444';
-                                }
+                                console.error('Manual start failed:', e);
+                                window.risex.startOrderBook(1); // пробуем REST
                             });
                     } else {
-                        console.log('ℹ️ Already connected, skipping force');
+                        console.error('❌ RisexAPI class not found!');
+                        console.log('📋 Available globals:', Object.keys(window).filter(k => k.includes('risex') || k.includes('Risex')));
                     }
-                } else {
-                    console.error('❌ window.risex is undefined!');
+                    return;
                 }
-            }, 2000);
+                
+                // Ждём ещё секунду
+                setTimeout(waitForRisexAndStart, 1000);
+            }
 
-            // 4. Дополнительная проверка через 5 секунд
+            // Запускаем ожидание через 500ms после загрузки
+            setTimeout(waitForRisexAndStart, 500);
+
+            // 4. Дополнительная проверка через 10 секунд
             setTimeout(() => {
-                console.log('🔍 FINAL CHECK (5s):');
-                console.log('  - Connected:', window.risex?._isConnected);
-                console.log('  - WS URL:', window.risex?._wsUrl);
-                console.log('  - Last price:', document.getElementById('price')?.textContent);
-            }, 5000);
+                console.log('🔍 FINAL CHECK (10s):');
+                console.log('  - window.risex:', window.risex);
+                console.log('  - window.risex?._isConnected:', window.risex?._isConnected);
+                console.log('  - window.risex?._wsUrl:', window.risex?._wsUrl);
+                console.log('  - Price element:', document.getElementById('price')?.textContent);
+                
+                // Если всё ещё нет данных - показываем ошибку
+                const priceEl = document.getElementById('price');
+                if (priceEl && priceEl.textContent === '$0.00') {
+                    console.warn('⚠️ Still no data after 10s!');
+                    const statusEl = document.getElementById('status');
+                    if (statusEl) {
+                        statusEl.textContent = '⚠️ No data (check console)';
+                        statusEl.style.color = '#ffaa00';
+                    }
+                }
+                
+                // Проверяем, есть ли ошибки WebSocket
+                console.log('📊 WebSocket status:');
+                console.log('  - WebSocket class:', typeof WebSocket);
+                console.log('  - Can create WS:', typeof new WebSocket('wss://ws.rise.trade/ws'));
+            }, 10000);
 
-            console.log('✅ Emergency fix applied');
+            // 5. Кнопка для ручного запуска
+            window.manualStart = function() {
+                console.log('🔧 Manual start requested');
+                if (window.risex) {
+                    window.risex.connect()
+                        .then(() => window.risex.startOrderBook(1))
+                        .catch(e => console.error('Manual start error:', e));
+                } else {
+                    console.error('❌ risex not available');
+                }
+            };
+
+            console.log('✅ Emergency fix installed');
+            console.log('💡 Tip: Type manualStart() in console to start manually');
         })();
     </script>
 </body>
