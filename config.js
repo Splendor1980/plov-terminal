@@ -1,5 +1,5 @@
 // ============================================================
-// js/config.js — КОНФИГУРАЦИЯ
+// js/config.js — КОНФИГУРАЦИЯ v3.0
 // ============================================================
 
 const firebaseConfig = {
@@ -11,43 +11,48 @@ const firebaseConfig = {
     appId:             "1:151638202833:web:107e0ef73da042fb8d28f0"
 };
 
-const RISE_CHAIN = {
+// ── Mainnet/Testnet switch ───────────────────────────────────
+const USE_MAINNET = true;   // ← true = mainnet
+
+const RISE_CHAIN = USE_MAINNET ? {
     chainId:  4153,
     rpcUrl:   "https://mainnet.riselabs.xyz",
     explorer: "https://explorer.riselabs.xyz"
+} : {
+    chainId:  11155931,
+    rpcUrl:   "https://testnet.riselabs.xyz",
+    explorer: "https://explorer.testnet.riselabs.xyz"
 };
 
-// REST API — через Vercel proxy (решает CORS)
-// На localhost прокси не работает, поэтому определяем автоматически
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
 const RISEX_API = {
-    // На Vercel: /api/... → Vercel проксирует в api.testnet.rise.trade/...
-    // На localhost: прямой запрос (будет CORS, но это нормально для разработки)
     rest: IS_LOCAL
-        ? "https://api.testnet.rise.trade"
+        ? (USE_MAINNET ? "https://api.rise.trade" : "https://api.testnet.rise.trade")
         : "/api",
-    ws: "wss://ws.rise.trade/ws"
+    ws: USE_MAINNET
+        ? "wss://ws.rise.trade/ws"
+        : "wss://ws.testnet.rise.trade/ws"
 };
 
-// Загружается из /v1/system/config при старте
 let RISEX_CONTRACTS = {
-    usdc:         null,
-    perpsManager: null,
-    authorization: null
+    usdc: null, router: null, ordersManager: null,
+    perpsManager: null, authorization: null, collateral: null
 };
 
 const MARKETS = { BTC: 1, ETH: 2 };
 
 let currentLang     = 'en';
-let currentMode     = 'perp';
-let currentLeverage = 10;
 let currentMarket   = 1;
+let currentLeverage = 10;
 
 window.firebaseConfig  = firebaseConfig;
 window.RISE_CHAIN      = RISE_CHAIN;
 window.RISEX_API       = RISEX_API;
 window.RISEX_CONTRACTS = RISEX_CONTRACTS;
 window.MARKETS         = MARKETS;
+window.USE_MAINNET     = USE_MAINNET;
+
 console.log('%cConfig loaded', 'color:#00ff9d',
-    IS_LOCAL ? '(localhost — прямые запросы)' : '(Vercel — через прокси)');
+    USE_MAINNET ? '(MAINNET)' : '(TESTNET)',
+    IS_LOCAL ? '— direct' : '— via Vercel proxy');
