@@ -113,8 +113,10 @@ function updatePriceUI(price) {
     // Подзаголовки кнопок
     const buySub  = document.getElementById('buy-sub');
     const sellSub = document.getElementById('sell-sub');
-    if (buySub)  buySub.textContent  = `×${currentLeverage}`;
-    if (sellSub) sellSub.textContent = `×${currentLeverage}`;
+    if (currentMode === 'perp') {
+        if (buySub)  buySub.textContent  = `×${currentLeverage}`;
+        if (sellSub) sellSub.textContent = `×${currentLeverage}`;
+    }
 }
 
 // ── График (SVG-bars) ─────────────────────────────────────────

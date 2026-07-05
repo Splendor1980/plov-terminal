@@ -23,8 +23,8 @@ async function handleAuth() {
         await fbAuth.signInWithPopup(window.fbGoogle);
     } catch (e) {
         let msg = e.message || 'Sign in error';
-        if (e.code === 'auth/popup-blocked')        msg = '❌ Popup blocked';
-        if (e.code === 'auth/popup-closed-by-user')  msg = 'ℹ️ Popup closed';
+        if (e.code === 'auth/popup-blocked')           msg = '❌ Popup blocked by browser';
+        if (e.code === 'auth/popup-closed-by-user')    msg = 'ℹ️ Popup closed';
         if (e.code === 'auth/cancelled-popup-request') { btn.disabled = false; return; }
         addToLog(msg, 'error');
     } finally {
@@ -35,10 +35,8 @@ async function handleAuth() {
 
 async function doLogout() {
     try { if (fbAuth) await fbAuth.signOut(); } catch {}
-
     isLoggedIn  = false;
     currentUser = null;
-
     updateAuthUI();
     addToLog(t('logout_done'), 'info');
 }
@@ -50,9 +48,9 @@ function updateAuthUI() {
 
     if (isLoggedIn && currentUser) {
         const name = currentUser.displayName || currentUser.email || '';
-        btn.textContent  = t('btn_logout') + ' ' + name.slice(0, 12);
-        btn.className    = 'btn-auth logout';
-        btn.disabled     = false;
+        btn.textContent = t('btn_logout') + ' ' + name.slice(0, 12);
+        btn.className   = 'btn-auth logout';
+        btn.disabled    = false;
         if (badge) { badge.textContent = t('status_online'); badge.className = 'status-badge online'; }
     } else {
         btn.textContent = t('btn_google');

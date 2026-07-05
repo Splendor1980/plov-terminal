@@ -39,11 +39,10 @@ function addMyTrade(side, price, size, leverage, pnl = null) {
     }
 }
 
-function loadMyTrades(uid) {
-    uid = uid || currentUser?.uid;
-    if (!uid) return;
+function loadMyTrades() {
+    if (!currentUser) return;
     try {
-        const saved = localStorage.getItem(`plov_trades_${uid}`);
+        const saved = localStorage.getItem(`plov_trades_${currentUser.uid}`);
         if (saved) {
             myTrades = JSON.parse(saved).map(t => ({
                 ...t, time: new Date(t.time)
@@ -82,13 +81,13 @@ function renderMyTrades() {
 // ── Кнопки BUY / SELL ────────────────────────────────────────
 
 async function handleBuyClick() {
-    if (!isSignerReady()) { addToLog(t('signer_required'), 'error'); return; }
+    if (!isLoggedIn) { addToLog(t('login_required'), 'error'); return; }
     if (isSubmitting) return;
     await _submit('LONG');
 }
 
 async function handleSellClick() {
-    if (!isSignerReady()) { addToLog(t('signer_required'), 'error'); return; }
+    if (!isLoggedIn) { addToLog(t('login_required'), 'error'); return; }
     if (isSubmitting) return;
     await _submit('SHORT');
 }
@@ -97,12 +96,12 @@ async function _submit(side) {
     const inp    = document.getElementById('amount-input');
     const amount = parseFloat(inp?.value);
     if (!amount || amount <= 0) {
-        addToLog(t('amount_invalid'), 'warning'); return;
+        addToLog('⚠️ Введите сумму USDC', 'warning'); return;
     }
 
-    const balance = userBalance || 0;
+    const balance = userWallet.risexBalance || userWallet.balances.usdc || 0;
     if (amount > balance) {
-        addToLog(`${t('balance_low')} ${balance.toFixed(2)})`, 'error');
+        addToLog(`❌ Недостаточно USDC (баланс: ${balance.toFixed(2)})`, 'error');
         return;
     }
 
@@ -113,7 +112,7 @@ async function _submit(side) {
     if (sellBtn) sellBtn.disabled = true;
 
     try {
-        await placeOrder(side, amount, currentLeverage);
+        await placeOrder(side, amount, currentLeverage, currentUser.uid);
     } finally {
         isSubmitting = false;
         if (buyBtn)  buyBtn.disabled  = false;
@@ -124,14 +123,35 @@ async function _submit(side) {
 // ── % от баланса ─────────────────────────────────────────────
 
 function setPct(pct) {
-    const balance = userBalance || 0;
+    const balance = userWallet.risexBalance || userWallet.balances.usdc || 0;
     const inp     = document.getElementById('amount-input');
     if (inp) inp.value = (balance * pct / 100).toFixed(2);
 }
 
 // ── Режим торговли ────────────────────────────────────────────
 
+function setMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.mode-tab').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === mode));
 
+    const levRow = document.getElementById('leverage-row');
+    if (levRow) levRow.style.display = mode === 'perp' ? 'flex' : 'none';
+
+    const buyLabel  = document.getElementById('btn-buy-label');
+    const sellLabel = document.getElementById('btn-sell-label');
+    if (mode === 'perp') {
+        if (buyLabel)  buyLabel.textContent  = '📈 LONG';
+        if (sellLabel) sellLabel.textContent = '📉 SHORT';
+        document.getElementById('buy-sub').textContent  = `×${currentLeverage}`;
+        document.getElementById('sell-sub').textContent = `×${currentLeverage}`;
+    } else {
+        if (buyLabel)  buyLabel.textContent  = '📈 BUY';
+        if (sellLabel) sellLabel.textContent = '📉 SELL';
+        document.getElementById('buy-sub').textContent  = 'Купить BTC';
+        document.getElementById('sell-sub').textContent = 'Продать BTC';
+    }
+}
 
 // ── Плечо ────────────────────────────────────────────────────
 
@@ -228,11 +248,10 @@ function updateStatsUI() {
         stats.volume.toFixed(0) + ' USDC';
 }
 
-async function loadStats(uid) {
-    uid = uid || currentUser?.uid;
-    if (!uid) return;
+async function loadStats() {
+    if (!currentUser) return;
     try {
-        const saved = localStorage.getItem(`plov_stats_${uid}`);
+        const saved = localStorage.getItem(`plov_stats_${currentUser.uid}`);
         if (saved) {
             const d = JSON.parse(saved);
             stats.trades = d.trades || 0;
@@ -246,6 +265,7 @@ async function loadStats(uid) {
 window.handleBuyClick   = handleBuyClick;
 window.handleSellClick  = handleSellClick;
 window.setPct           = setPct;
+window.setMode          = setMode;
 window.setLeverage      = setLeverage;
 window.updatePositionUI = updatePositionUI;
 window.updatePnL        = updatePnL;

@@ -1,474 +1,237 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚀 PLOV Scalping Terminal v3.0</title>
-    
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            background: #0a0e17;
-            color: #c8d6e5;
-            font-family: 'Courier New', monospace;
-            height: 100vh;
-            overflow: hidden;
-        }
-        
-        #app {
-            display: grid;
-            grid-template-columns: 300px 1fr 300px;
-            grid-template-rows: 50px 1fr 200px;
-            gap: 2px;
-            height: 100vh;
-            padding: 2px;
-            background: #0d1520;
-        }
-        
-        .panel {
-            background: #111927;
-            border: 1px solid #1a2a3a;
-            border-radius: 4px;
-            padding: 8px;
-            overflow: hidden;
-        }
-        
-        .panel-header {
-            font-size: 11px;
-            color: #4a6a8a;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            border-bottom: 1px solid #1a2a3a;
-            padding-bottom: 4px;
-            margin-bottom: 6px;
-        }
-        
-        #header {
-            grid-column: 1 / -1;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 16px;
-            background: #111927;
-            border-bottom: 1px solid #1a2a3a;
-        }
-        
-        #header .title {
-            font-size: 18px;
-            font-weight: bold;
-            color: #00ff88;
-        }
-        
-        #header .status {
-            font-size: 12px;
-        }
-        
-        #header .controls button {
-            background: #1a2a3a;
-            border: 1px solid #2a4a5a;
-            color: #c8d6e5;
-            padding: 4px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-family: inherit;
-            font-size: 12px;
-        }
-        
-        #header .controls button:hover {
-            background: #2a4a5a;
-        }
-        
-        #orderbook {
-            grid-row: 2 / 4;
-            overflow-y: auto;
-        }
-        
-        #orderbook .order-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            padding: 2px 4px;
-            position: relative;
-        }
-        
-        #orderbook .order-row .depth-bar {
-            position: absolute;
-            right: 0;
-            top: 0;
-            height: 100%;
-            opacity: 0.15;
-            background: currentColor;
-        }
-        
-        #orderbook .order-row.bid .price { color: #00ff88; }
-        #orderbook .order-row.ask .price { color: #ff4444; }
-        
-        #price-panel {
-            grid-column: 2;
-            grid-row: 2;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4px;
-        }
-        
-        #price-panel .price-item {
-            text-align: center;
-            padding: 4px;
-            background: #0d1520;
-            border-radius: 4px;
-        }
-        
-        #price-panel .price-item .label {
-            font-size: 10px;
-            color: #4a6a8a;
-        }
-        
-        #price-panel .price-item .value {
-            font-size: 16px;
-            font-weight: bold;
-        }
-        
-        #price-panel .price-item .value.green { color: #00ff88; }
-        #price-panel .price-item .value.red { color: #ff4444; }
-        
-        #chart {
-            grid-column: 2;
-            grid-row: 3;
-            background: #0d1520;
-        }
-        
-        #trades {
-            grid-row: 2 / 4;
-            overflow-y: auto;
-            font-size: 12px;
-        }
-        
-        #trades .trade-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 2px 4px;
-            border-bottom: 1px solid #0d1520;
-        }
-        
-        #trades .trade-row.buy .price { color: #00ff88; }
-        #trades .trade-row.sell .price { color: #ff4444; }
-        
-        #account {
-            grid-column: 1;
-            grid-row: 1;
-            font-size: 12px;
-        }
-        
-        #account .balance-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 2px 0;
-        }
-        
-        #positions-orders {
-            grid-column: 3;
-            grid-row: 1;
-            font-size: 12px;
-        }
-        
-        ::-webkit-scrollbar {
-            width: 4px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #0d1520;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #1a2a3a;
-            border-radius: 2px;
-        }
-        
-        .loading {
-            color: #4a6a8a;
-            text-align: center;
-            padding: 20px;
-            font-size: 14px;
-        }
-        
-        @media (max-width: 1024px) {
-            #app {
-                grid-template-columns: 1fr;
-                grid-template-rows: auto;
-                overflow-y: auto;
-                height: auto;
-            }
-            .panel {
-                min-height: 200px;
-            }
-        }
-    </style>
+    <title>PLOV Scalping Terminal v3.0</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" defer></script>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div id="app">
-        <!-- HEADER -->
-        <div id="header">
-            <div class="title">🚀 PLOV Scalping v3.0</div>
-            <div class="status">
-                <span id="status">🔄 Connecting...</span>
-                <span style="margin-left:16px;color:#4a6a8a;">|</span>
-                <span id="price" style="margin-left:16px;font-weight:bold;">$0.00</span>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+    <div class="logo">⚡ PLOV <span class="accent">Scalping</span> <span class="version">v3.0</span></div>
+    <div class="top-center">
+        <span class="market-label">BTC-PERP</span>
+        <span class="top-price" id="top-price">---</span>
+        <span class="top-change" id="top-change">+0.00%</span>
+    </div>
+    <div class="top-right">
+        <div class="lang-selector">
+            <button class="lang-btn" data-lang="ru" onclick="setLanguage('ru')">RU</button>
+            <button class="lang-btn active" data-lang="en" onclick="setLanguage('en')">EN</button>
+            <button class="lang-btn" data-lang="zh" onclick="setLanguage('zh')">中文</button>
+        </div>
+        <span class="status-badge offline" id="status-badge">● Offline</span>
+        <button class="btn-icon" id="theme-toggle" onclick="toggleTheme()">☀️</button>
+
+        <div class="settings-wrap">
+            <button class="btn-icon" id="btn-settings" onclick="toggleSettings()">⚙️</button>
+
+            <div class="welcome-bubble" id="welcome-bubble">
+                <div class="bubble-arrow"></div>
             </div>
-            <div class="controls">
-                <button onclick="if(window.risex) window.risex.startOrderBook(1); else location.reload();">
-                    <span id="tradeBtn">▶ Start</span>
-                </button>
-                <button onclick="location.reload()">⟳</button>
+
+            <div class="settings-panel" id="settings-panel">
+                <div class="settings-title">⚙️ Settings</div>
+
+                <div class="settings-language">
+                    <span class="security-section-title">🌐 Language</span>
+                    <div class="lang-selector-panel">
+                        <button class="lang-btn" data-lang="ru" onclick="setLanguage('ru');closeSettings()">RU</button>
+                        <button class="lang-btn active" data-lang="en" onclick="setLanguage('en');closeSettings()">EN</button>
+                        <button class="lang-btn" data-lang="zh" onclick="setLanguage('zh');closeSettings()">中文</button>
+                    </div>
+                </div>
+
+                <div class="settings-divider"></div>
+
+                <button class="btn-help" id="btn-show-bubble" onclick="showBubbleManual()">❓ Help</button>
             </div>
         </div>
 
-        <!-- ACCOUNT -->
-        <div id="account" class="panel">
-            <div class="panel-header">📊 Account</div>
-            <div class="balance-item"><span>Balance</span><span id="balance">$0.00</span></div>
-            <div class="balance-item"><span>Equity</span><span id="equity">$0.00</span></div>
-            <div class="balance-item"><span>P&L</span><span id="pnl">$0.00</span></div>
-            <div class="balance-item"><span>P&L %</span><span id="pnlPercent">0.00%</span></div>
-            <div style="border-top:1px solid #1a2a3a;margin:4px 0;"></div>
-            <div id="positions" style="font-size:11px;color:#4a6a8a;padding:4px;">No open positions</div>
-        </div>
+        <button class="btn-auth" id="btn-auth" onclick="handleAuth()">🔑 Sign in</button>
+    </div>
+</div>
 
-        <!-- ORDERBOOK -->
-        <div id="orderbook" class="panel">
-            <div class="panel-header">📖 Order Book <span style="float:right;font-weight:normal;">
-                <span id="bid" style="color:#00ff88;">0.00</span> / 
-                <span id="ask" style="color:#ff4444;">0.00</span>
-                <span style="color:#4a6a8a;">| Spread: </span>
-                <span id="spread">0.00</span>
-            </span></div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;height:calc(100% - 30px);">
-                <div id="bids"><div class="loading">Loading bids...</div></div>
-                <div id="asks"><div class="loading">Loading asks...</div></div>
-            </div>
-        </div>
+<!-- MAIN GRID -->
+<div class="main-grid">
 
-        <!-- PRICE PANEL -->
-        <div id="price-panel" class="panel">
-            <div class="price-item">
-                <div class="label">Mark Price</div>
-                <div class="value" id="markPrice">$0.00</div>
+    <!-- LEFT: Order Book -->
+    <div class="panel panel-left">
+        <div class="panel-title" id="ob-panel-title">📊 Order Book <span class="badge-live" id="ob-live">LIVE</span></div>
+        <div class="ob-header">
+            <span id="ob-price-label">Price</span>
+            <span id="ob-vol-label">Size</span>
+            <span id="ob-total-label">Total</span>
+        </div>
+        <div class="ob-asks" id="asks-container"><div class="ob-placeholder">Loading...</div></div>
+        <div class="ob-spread"><span id="spread-label">Spread: </span><span id="spread-value">---</span></div>
+        <div class="ob-bids" id="bids-container"><div class="ob-placeholder">Loading...</div></div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="panel panel-center">
+        <div class="price-row">
+            <div class="price-main">
+                <span class="price-value" id="btc-price">---</span>
+                <span class="price-unit">USDC</span>
             </div>
-            <div class="price-item">
-                <div class="label">Last Price</div>
-                <div class="value" id="lastPrice">$0.00</div>
-            </div>
-            <div class="price-item">
-                <div class="label">Volume</div>
-                <div class="value" id="volume">0.00</div>
-            </div>
-            <div class="price-item">
-                <div class="label">Open Interest</div>
-                <div class="value" id="openInterest">0.00</div>
-            </div>
-            <div class="price-item" style="grid-column:1/-1;">
-                <div class="label">Funding Rate</div>
-                <div class="value" id="fundingRate">0.0000%</div>
+            <div class="price-meta">
+                <span class="price-change" id="price-change">+0.00%</span>
+                <span class="price-funding" id="funding-rate">FR: ---</span>
             </div>
         </div>
 
-        <!-- CHART -->
-        <div id="chart" class="panel">
-            <div class="panel-header">📈 Chart <span style="float:right;font-weight:normal;color:#4a6a8a;">
-                <span id="symbol">BTCUSDT</span> <span id="timeframe">1m</span>
-            </span></div>
-            <div style="display:flex;align-items:center;justify-content:center;height:calc(100% - 30px);color:#4a6a8a;font-size:12px;">
-                📊 Chart placeholder
+        <div class="chart-wrap">
+            <div class="chart-container" id="chart-container"></div>
+            <div class="chart-labels">
+                <span id="chart-high">H: ---</span>
+                <span id="chart-low">L: ---</span>
             </div>
         </div>
 
-        <!-- TRADES -->
-        <div id="trades" class="panel">
-            <div class="panel-header">📋 Recent Trades</div>
-            <div id="trades-list"><div class="loading">No trades yet</div></div>
+        <div class="leverage-row" id="leverage-row">
+            <span class="lev-label" id="lev-label-text">Leverage:</span>
+            <div class="lev-btns">
+                <button class="lev-btn active" data-lev="1"  onclick="setLeverage(1)">1×</button>
+                <button class="lev-btn"         data-lev="2"  onclick="setLeverage(2)">2×</button>
+                <button class="lev-btn"         data-lev="5"  onclick="setLeverage(5)">5×</button>
+                <button class="lev-btn"         data-lev="10" onclick="setLeverage(10)">10×</button>
+                <button class="lev-btn"         data-lev="25" onclick="setLeverage(25)">25×</button>
+            </div>
         </div>
 
-        <!-- POSITIONS & ORDERS -->
-        <div id="positions-orders" class="panel">
-            <div class="panel-header">📦 Positions & Orders</div>
-            <div style="font-size:11px;color:#4a6a8a;padding:4px;">No open positions</div>
-            <div style="border-top:1px solid #1a2a3a;margin:4px 0;"></div>
-            <div style="font-size:11px;color:#4a6a8a;padding:4px;">No active orders</div>
+        <div class="amount-row">
+            <div class="amount-input-wrap">
+                <input type="number" id="amount-input" placeholder="Amount USDC" min="0" step="1">
+                <span class="amount-unit">USDC</span>
+            </div>
+            <div class="quick-pct">
+                <button class="pct-btn" onclick="setPct(25)">25%</button>
+                <button class="pct-btn" onclick="setPct(50)">50%</button>
+                <button class="pct-btn" onclick="setPct(75)">75%</button>
+                <button class="pct-btn" onclick="setPct(100)">MAX</button>
+            </div>
+        </div>
+
+        <div class="trade-btns">
+            <button class="btn-buy" id="btn-buy" onclick="handleBuyClick()">
+                <span class="btn-label">📈 LONG</span>
+                <span class="btn-sub" id="buy-sub">Open long</span>
+            </button>
+            <button class="btn-sell" id="btn-sell" onclick="handleSellClick()">
+                <span class="btn-label">📉 SHORT</span>
+                <span class="btn-sub" id="sell-sub">Open short</span>
+            </button>
+        </div>
+
+        <div class="hotkeys" id="hotkeys-text">
+            <kbd>B</kbd> LONG &nbsp; <kbd>S</kbd> SHORT &nbsp; <kbd>Esc</kbd> Reset
+        </div>
+
+        <div class="log-wrap">
+            <div class="log-tabs">
+                <button class="log-tab active" id="tab-log"      onclick="switchLogTab('log')">📋 Log</button>
+                <button class="log-tab"         id="tab-trades"   onclick="switchLogTab('trades')">⚡ Trades</button>
+                <button class="log-tab"         id="tab-mytrades" onclick="switchLogTab('mytrades')">💼 My Trades</button>
+            </div>
+            <div class="log-pane" id="pane-log">
+                <div class="trade-log" id="trade-log">
+                    <div class="log-line muted">⏳ Loading...</div>
+                </div>
+            </div>
+            <div class="log-pane" id="pane-trades" style="display:none">
+                <div class="my-trades-header-inline" id="trades-header">
+                    <span>Price</span><span>Size</span><span>Time</span>
+                </div>
+                <div class="market-trades-list" id="market-trades-list"></div>
+            </div>
+            <div class="log-pane" id="pane-mytrades" style="display:none">
+                <div class="my-trades-header-inline" id="mytrades-header">
+                    <span>Side</span><span>Price</span><span>Size</span><span>Lev</span><span>PnL</span><span>Time</span>
+                </div>
+                <div class="my-trades-list-inline" id="my-trades-list">
+                    <div class="no-trades muted">No trades yet</div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- СКРИПТЫ -->
-    <!-- ============================================================ -->
-    
-    <script src="js/config.js"></script>
-    <script src="js/risex.js"></script>
-    <script src="js/main.js"></script>
+    <!-- RIGHT -->
+    <div class="panel panel-right">
 
-    <!-- ============================================================ -->
-    <!-- ЭКСТРЕННЫЙ ФИКС С ЗАПУСКОМ startOrderBook -->
-    <!-- ============================================================ -->
-    <script>
-        (function() {
-            'use strict';
-            
-            console.log('🛠️ EMERGENCY FIX RUNNING...');
-            console.log('🕐 Time:', new Date().toISOString());
+        <!-- Signer Key section -->
+        <div class="section" id="signer-section">
+            <div class="section-title" id="signer-title">🔑 RISEx API Key</div>
+            <div id="signer-not-connected">
+                <p class="signer-hint" id="signer-hint-text">
+                    Connect your RISEx Signer Key to start real trading.
+                </p>
+                <button class="btn-rise-api" onclick="openRiseApiPage()">
+                    <span id="btn-rise-api-text">Get API Key on rise.trade</span> ↗
+                </button>
+                <div class="signer-input-row">
+                    <input type="password" id="signer-key-input" placeholder="0x... (private key)" autocomplete="off">
+                    <button class="btn-sm btn-green" onclick="saveSignerKey()" id="btn-save-signer">Save</button>
+                </div>
+                <p class="signer-security-note" id="signer-security-note">
+                    🔒 Stored locally in your browser only. Never sent to our servers.
+                </p>
+            </div>
+            <div id="signer-connected" style="display:none">
+                <div class="signer-connected-row">
+                    <span class="signer-status-dot"></span>
+                    <span id="signer-address-short">---</span>
+                    <button class="btn-copy" onclick="copySignerAddress()">⧉</button>
+                </div>
+                <button class="btn-sm btn-red" onclick="disconnectSigner()" id="btn-disconnect-signer">Disconnect</button>
+            </div>
+        </div>
 
-            // 1. Перехват WebSocket
-            const ORIGINAL_WS = window.WebSocket;
-            window.WebSocket = function(url, protocols) {
-                if (typeof url === 'string' && url.includes('testnet')) {
-                    console.warn('⚠️ INTERCEPTED testnet URL:', url);
-                    url = url.replace(/testnet\.rise\.trade/g, 'rise.trade');
-                    url = url.replace(/ws\.testnet/g, 'ws');
-                    console.log('✅ CHANGED TO:', url);
-                }
-                if (!url || url === '' || url === 'undefined') {
-                    url = 'wss://ws.rise.trade/ws';
-                }
-                const ws = new ORIGINAL_WS(url, protocols);
-                console.log('🟢 WebSocket created with URL:', url);
-                return ws;
-            };
-            window.WebSocket.prototype = ORIGINAL_WS.prototype;
+        <!-- Balance -->
+        <div class="section">
+            <div class="section-title" id="balance-title">💰 Balance</div>
+            <div class="balances">
+                <div class="bal-row"><span class="bal-label" id="bal-label-usdc">USDC (RISEx)</span><span class="bal-val green" id="bal-risex">0.00</span></div>
+            </div>
+        </div>
 
-            // 2. Форсируем конфиги
-            window.USE_MAINNET = true;
-            window.FORCE_MAINNET_WS = true;
-            if (window.RISEX_API) {
-                window.RISEX_API.ws = 'wss://ws.rise.trade/ws';
-            }
+        <div class="section">
+            <div class="section-title" id="position-title">📦 Position</div>
+            <div class="pos-row"><span class="pos-label" id="pos-label-side">Side</span><span class="pos-val" id="pos-side">---</span></div>
+            <div class="pos-row"><span class="pos-label" id="pos-label-size">Size</span><span class="pos-val" id="pos-size">---</span></div>
+            <div class="pos-row"><span class="pos-label" id="pos-label-entry">Entry</span><span class="pos-val" id="pos-entry">---</span></div>
+            <div class="pos-row"><span class="pos-label" id="pos-label-liq">Liquidation</span><span class="pos-val red" id="pos-liq">---</span></div>
+            <div class="pos-row"><span class="pos-label" id="pos-label-pnl">PnL</span><span class="pos-val" id="pos-pnl">+0.00</span></div>
+            <button class="btn-close-pos" id="btn-close-pos" onclick="closePosition()" style="display:none">✕ Close position</button>
+        </div>
 
-            // 3. Ждём загрузки risex
-            let waitCount = 0;
-            const maxWait = 30; // 30 секунд максимум
-            
-            function waitForRisexAndStart() {
-                waitCount++;
-                console.log(`⏳ Waiting for risex... (${waitCount}s)`);
-                
-                // Проверяем, появился ли risex
-                if (window.risex && typeof window.risex.startOrderBook === 'function') {
-                    console.log('✅ risex found! Starting order book...');
-                    console.log('📦 window.risex:', window.risex);
-                    
-                    // Обновляем статус
-                    const statusEl = document.getElementById('status');
-                    if (statusEl) {
-                        statusEl.textContent = '🔄 Connecting...';
-                        statusEl.style.color = '#ffaa00';
-                    }
-                    
-                    // Подключаемся
-                    window.risex.connect()
-                        .then(() => {
-                            console.log('✅ Connected! Starting order book...');
-                            window.risex.startOrderBook(1); // BTC
-                            
-                            if (statusEl) {
-                                statusEl.textContent = '🟢 Connected';
-                                statusEl.style.color = '#00ff88';
-                            }
-                        })
-                        .catch(e => {
-                            console.error('❌ Connection failed:', e);
-                            // Пробуем REST только
-                            console.log('🔄 Trying REST-only mode...');
-                            if (window.risex._restEnabled !== false) {
-                                window.risex.startOrderBook(1);
-                            }
-                            if (statusEl) {
-                                statusEl.textContent = '⚠️ REST mode';
-                                statusEl.style.color = '#ffaa00';
-                            }
-                        });
-                    
-                    return;
-                }
-                
-                // Проверяем через глобальные функции
-                if (typeof window.startOrderBook === 'function') {
-                    console.log('✅ window.startOrderBook found!');
-                    window.startOrderBook(1);
-                    return;
-                }
-                
-                // Если прошло слишком много времени - пробуем создать вручную
-                if (waitCount > maxWait) {
-                    console.error('❌ risex not loaded after 30s!');
-                    console.log('🔧 Creating risex manually...');
-                    
-                    // Пытаемся создать экземпляр вручную
-                    if (typeof RisexAPI !== 'undefined') {
-                        window.risex = new RisexAPI();
-                        window.risex.startOrderBook = window.risex.startOrderBook.bind(window.risex);
-                        window.risex.connect = window.risex.connect.bind(window.risex);
-                        console.log('✅ Manual risex created:', window.risex);
-                        
-                        // Запускаем
-                        window.risex.connect()
-                            .then(() => window.risex.startOrderBook(1))
-                            .catch(e => {
-                                console.error('Manual start failed:', e);
-                                window.risex.startOrderBook(1); // пробуем REST
-                            });
-                    } else {
-                        console.error('❌ RisexAPI class not found!');
-                        console.log('📋 Available globals:', Object.keys(window).filter(k => k.includes('risex') || k.includes('Risex')));
-                    }
-                    return;
-                }
-                
-                // Ждём ещё секунду
-                setTimeout(waitForRisexAndStart, 1000);
-            }
+        <div class="section">
+            <div class="section-title" id="stats-title">📊 Statistics</div>
+            <div class="pos-row"><span class="pos-label" id="stat-label-trades">Trades</span><span class="pos-val" id="stat-trades">0</span></div>
+            <div class="pos-row"><span class="pos-label" id="stat-label-winrate">Winrate</span><span class="pos-val" id="stat-winrate">0%</span></div>
+            <div class="pos-row"><span class="pos-label" id="stat-label-volume">Volume</span><span class="pos-val" id="stat-volume">0</span></div>
+            <div class="pos-row"><span class="pos-label" id="stat-label-best">Best</span><span class="pos-val green" id="stat-best">---</span></div>
+            <div class="pos-row"><span class="pos-label" id="stat-label-worst">Worst</span><span class="pos-val red" id="stat-worst">---</span></div>
+        </div>
+    </div>
+</div>
 
-            // Запускаем ожидание через 500ms после загрузки
-            setTimeout(waitForRisexAndStart, 500);
+<div class="toast" id="toast"></div>
 
-            // 4. Дополнительная проверка через 10 секунд
-            setTimeout(() => {
-                console.log('🔍 FINAL CHECK (10s):');
-                console.log('  - window.risex:', window.risex);
-                console.log('  - window.risex?._isConnected:', window.risex?._isConnected);
-                console.log('  - window.risex?._wsUrl:', window.risex?._wsUrl);
-                console.log('  - Price element:', document.getElementById('price')?.textContent);
-                
-                // Если всё ещё нет данных - показываем ошибку
-                const priceEl = document.getElementById('price');
-                if (priceEl && priceEl.textContent === '$0.00') {
-                    console.warn('⚠️ Still no data after 10s!');
-                    const statusEl = document.getElementById('status');
-                    if (statusEl) {
-                        statusEl.textContent = '⚠️ No data (check console)';
-                        statusEl.style.color = '#ffaa00';
-                    }
-                }
-                
-                // Проверяем, есть ли ошибки WebSocket
-                console.log('📊 WebSocket status:');
-                console.log('  - WebSocket class:', typeof WebSocket);
-                console.log('  - Can create WS:', typeof new WebSocket('wss://ws.rise.trade/ws'));
-            }, 10000);
-
-            // 5. Кнопка для ручного запуска
-            window.manualStart = function() {
-                console.log('🔧 Manual start requested');
-                if (window.risex) {
-                    window.risex.connect()
-                        .then(() => window.risex.startOrderBook(1))
-                        .catch(e => console.error('Manual start error:', e));
-                } else {
-                    console.error('❌ risex not available');
-                }
-            };
-
-            console.log('✅ Emergency fix installed');
-            console.log('💡 Tip: Type manualStart() in console to start manually');
-        })();
-    </script>
+<script src="js/config.js"></script>
+<script src="js/abi.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/security.js"></script>
+<script src="js/signer.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/risex.js"></script>
+<script src="js/trading.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>
