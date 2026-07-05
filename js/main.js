@@ -45,7 +45,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     let app;
     try { app = firebase.app(); } catch { app = firebase.initializeApp(firebaseConfig); }
     window.fbAuth   = firebase.auth();
-    window.fbDb     = firebase.firestore();
+    // fbDb removed — no Firestore in v3.0
     window.fbGoogle = new firebase.auth.GoogleAuthProvider();
 
     // 4. Auth listener
@@ -90,11 +90,6 @@ window.setPct                 = setPct;
 window.setMode                = setMode;
 window.setLeverage            = setLeverage;
 window.closePosition          = closePosition;
-window.handleDeposit          = handleDeposit;
-window.handleWithdraw         = handleWithdraw;
-window.copyAddress            = copyAddress;
-window.confirmPin             = confirmPin;
-window.cancelPin              = cancelPin;
 window.showToast              = showToast;
 window.toggleSettings         = toggleSettings;
 window.closeSettings          = closeSettings;
