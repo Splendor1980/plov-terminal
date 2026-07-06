@@ -14,7 +14,7 @@ PLOV is a focused, no-nonsense scalping terminal built specifically for [RISEx](
 
 RISEx runs on RISE Chain — an ultra-fast Ethereum L2 with 1-second block times and gas-free trading via their API. This makes it ideal for scalping. PLOV takes full advantage of that.
 
-| Feature | RISEx default UI | PLOV |
+| Feature | ordinary default UI | PLOV |
 |---|---|---|
 | Real-time orderbook | ✅ | ✅ WebSocket |
 | Keyboard shortcuts | ❌ | ✅ B / S / Esc |
