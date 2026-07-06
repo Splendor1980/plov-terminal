@@ -1,56 +1,120 @@
-# PLOV Scalping Terminal
+# ⚡ PLOV Scalping Terminal
 
-**Professional Scalping Terminal for RISEx (RISE Chain)** — fast, convenient, and purpose-built for high-frequency scalping.
+**The fastest way to scalp on RISEx.**
 
-## ✨ Key Features
+PLOV is a focused, no-nonsense scalping terminal built specifically for [RISEx](https://rise.trade) — the perpetuals exchange on RISE Chain. While RISEx has a solid trading interface, PLOV is designed for one thing: getting in and out of positions fast.
 
-- **Hotkeys** for ultra-fast trading (B = Buy, S = Sell, Esc = quick clear, etc.)
-- **One-click trading** with percentage-based position sizing
-- **Deep real-time order book** with live updates
-- **Multi-language support**: English + Russian + Chinese
-- **Firebase Authentication** (Google login)
-- **Quick settings** for leverage, position size, and trading mode
-- Full support for **mainnet** and **testnet**
+![PLOV Terminal](https://plov-terminal.vercel.app)
 
-## 🚀 Quick Start
+🔗 **Live:** [plov-terminal.vercel.app](https://plov-terminal.vercel.app)
 
-1. Visit [plov-terminal.vercel.app](https://plov-terminal.vercel.app)
-2. Log in with Google (via Firebase)
-3. Start scalping!
-
-## 🔥 Why Choose PLOV?
-
-- Built specifically for **scalping on RISEx / RISE Chain**
-- Minimal latency and high execution speed
-- Clean, intuitive interface designed for active traders
-- Strong support for Russian and Chinese speaking communities
-- Actively developed with regular updates
-
-## 🛠 Tech Stack
-
-- HTML + CSS + Vanilla JavaScript
-- Firebase (Auth + Firestore)
-- RISEx API (testnet & mainnet)
-- Hosted on Vercel
-
-### Planned & Requested Features (based on user feedback)
-
-- Lower effective trading fees and better fee control
-- Even faster execution with custom RPC support and improved MEV protection
-- Dynamic take-profit and trailing stop mechanisms (time/volume-based exits)
-- Built-in social alpha layer (Twitter monitor, in-app communities, wallet tracking)
-- Smarter token discovery and filtering tools for new launches
-- Advanced copy-trading and smart wallet following
-- Improved multi-wallet management and portfolio overview
-- Better mobile / PWA experience with push notifications
-- More customization options and advanced order types
-- Backtesting capabilities for strategies
-
-We actively listen to the community — your suggestions via GitHub Issues are very welcome!
-
-
-## ⭐ Support the Project
-
-If PLOV helps you trade better — please star the repository ⭐ and share it with fellow traders!
-https://discord.gg/e6KWQDtdEk
 ---
+
+## Why PLOV?
+
+RISEx runs on RISE Chain — an ultra-fast Ethereum L2 with 1-second block times and gas-free trading via their API. This makes it ideal for scalping. PLOV takes full advantage of that.
+
+| Feature | RISEx default UI | PLOV |
+|---|---|---|
+| Real-time orderbook | ✅ | ✅ WebSocket |
+| Keyboard shortcuts | ❌ | ✅ B / S / Esc |
+| Focused scalping layout | ❌ | ✅ |
+| No MetaMask required | ❌ | ✅ Signer Key only |
+| Multilingual | ❌ | ✅ EN / RU / 中文 |
+| Open source | ❌ | ✅ |
+
+---
+
+## How it works
+
+PLOV connects directly to RISEx API using your **Signer Key** — a dedicated API key you create on [rise.trade](https://www.rise.trade/en/API). No MetaMask. No browser wallet. Just paste your key and trade.
+
+```
+rise.trade → Settings → API Keys → Create Signer Key
+                    ↓
+           Paste into PLOV → Start trading
+```
+
+Your key is stored **locally in your browser only**. Never sent to our servers.
+
+---
+
+## Features
+
+- 📊 **Live orderbook** — real-time via WebSocket, polling fallback
+- 📈 **Price chart** — live BTC-PERP price history
+- ⚡ **One-click trading** — LONG / SHORT with configurable leverage (1x–25x)
+- ⌨️ **Keyboard shortcuts** — `B` = Long, `S` = Short, `Esc` = Reset
+- 💼 **Trade history** — track your session performance
+- 📊 **Statistics** — winrate, volume, best/worst trade
+- 🌐 **Multilingual** — English, Русский, 中文
+- 🌙 **Dark / Light theme**
+- 🔒 **Signer Key** — your key stays in your browser
+
+---
+
+## Tech stack
+
+- **Vanilla JS** — no framework, fast and lean
+- **ethers.js v6** — EIP-712 signing for orders
+- **RISEx API** — REST + WebSocket (mainnet)
+- **Firebase Auth** — Google sign-in for session tracking
+- **Vercel** — hosting + API proxy (CORS)
+
+---
+
+## Getting started (local)
+
+```bash
+git clone https://github.com/Splendor1980/plov-terminal.git
+cd plov-terminal
+npx live-server --port=8080
+```
+
+Open `http://localhost:8080`
+
+> Note: On localhost, orderbook uses polling fallback (WebSocket requires HTTPS). Full WebSocket works on Vercel.
+
+---
+
+## Switching mainnet / testnet
+
+In `js/config.js`:
+
+```js
+const USE_MAINNET = true;   // ← false for testnet
+```
+
+One line switches all URLs, chainId, and WebSocket endpoint.
+
+---
+
+## Contributing
+
+PRs welcome. If you're building on RISE Chain or integrating RISEx API, this codebase is a good reference for:
+- EIP-712 order signing (`js/risex.js`)
+- WebSocket orderbook with polling fallback
+- Signer Key management without MetaMask
+
+---
+
+## Roadmap
+
+- [ ] Real order placement (pending RISEx API clarification on `encodeOrder` format)
+- [ ] ETH-PERP and other markets
+- [ ] TP/SL orders
+- [ ] Mobile-friendly layout
+- [ ] $1/month subscription for advanced features
+
+---
+
+## Links
+
+- 🌐 [plov-terminal.vercel.app](https://plov-terminal.vercel.app)
+- 📖 [RISEx API docs](https://github.com/SmoothBot/risex-ts)
+- ⛓️ [RISE Chain](https://risechain.com)
+- 💬 [RISEx Discord](https://discord.gg/risex)
+
+---
+
+*Built with ⚡ for the RISE Chain ecosystem*
