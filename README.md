@@ -114,7 +114,7 @@ PRs welcome. If you're building on RISE Chain or integrating RISEx API, this cod
 - 📖 [RISEx API docs](https://github.com/SmoothBot/risex-ts)
 - ⛓️ [RISE Chain](https://risechain.com)
 - 💬 [RISEx Discord](https://discord.gg/risex)
-💬 [PLOV Discord]((https://discord.gg/e6KWQDtdEk))
+- 💬 [PLOV Discord](https://discord.gg/e6KWQDtdEk)
 ---
 
 *Built with ⚡ for the RISE Chain ecosystem*
