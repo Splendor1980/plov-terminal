@@ -6,7 +6,7 @@
 let signerKey     = null;   // private key (string)
 let signer        = null;   // ethers.Wallet
 let signerAddress = null;
-let ethProvider   = null;
+// ethProvider уже объявлен в wallet.js - используем глобальную переменную
 
 const RISE_API_URL = 'https://www.rise.trade/en/API';
 
