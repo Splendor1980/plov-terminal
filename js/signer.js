@@ -2,12 +2,11 @@
 // js/signer.js — RISEx SIGNER KEY MANAGEMENT
 // User provides their own Signer Key created on rise.trade
 // ============================================================
-// Note: signer, signerAddress, ethProvider already declared in wallet.js
-// This file uses those global variables
+// NOTE: signer, signerAddress, ethProvider are already declared in wallet.js
+// This file ONLY declares signerKey and uses global variables from wallet.js
 
 let signerKey     = null;   // private key (string)
-// signer и signerAddress используются из wallet.js (глобальные переменные)
-// ethProvider уже объявлен в wallet.js - используем глобальную переменную
+// signer, signerAddress, ethProvider используются из wallet.js (глобальные переменные)
 
 const RISE_API_URL = 'https://www.rise.trade/en/API';
 

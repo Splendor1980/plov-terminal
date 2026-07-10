@@ -8,9 +8,10 @@ let userWallet = {
     signerRegistered: false, faucetClaimed: false
 };
 
-let ethProvider = null;
-let signer      = null;
-let currentPin  = null;
+let ethProvider  = null;
+let signer       = null;
+let signerAddress = null;  // добавлено для signer.js
+let currentPin   = null;
 
 // ── Шифрование (только для Advanced) ────────────────────────
 
@@ -316,4 +317,7 @@ window.handleWithdraw     = handleWithdraw;
 window.copyAddress        = copyAddress;
 window.confirmPin         = confirmPin;
 window.cancelPin          = cancelPin;
+// Export для signer.js
+window.signer             = signer;
+window.signerAddress      = signerAddress;
 console.log('%cWallet loaded', 'color:#00ff9d');
