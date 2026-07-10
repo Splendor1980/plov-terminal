@@ -535,6 +535,110 @@ function loadLanguage() {
     currentLang = (saved && LANGUAGES[saved]) ? saved : 'ru';
 }
 
+// ── ПЕРЕВОДЫ ПОДПИСКИ ─────────────────────────────────────
+LANGUAGES.en = LANGUAGES.en || {};
+LANGUAGES.ru = LANGUAGES.ru || {};
+LANGUAGES.zh = LANGUAGES.zh || {};
+
+// Английский
+Object.assign(LANGUAGES.en, {
+    btn_subscribe: 'Subscribe',
+    btn_renew: 'Renew',
+    btn_subscribe_now: 'Subscribe Now',
+    btn_confirm_payment: 'Confirm Payment',
+    btn_cancel: 'Cancel',
+    subscription_trial: 'Trial Mode',
+    subscription_active: 'Active',
+    subscription_expired: 'Expired - Subscribe to trade',
+    subscription_month: 'month',
+    subscription_days: 'days',
+    subscription_day: 'day',
+    subscription_loaded: 'Subscription loaded',
+    subscription_trial_start: 'Trial period started',
+    subscription_required_tooltip: 'Subscribe to unlock trading',
+    subscription_already_active: 'Subscription already active',
+    payment_modal_title: 'Subscribe to PLOV Scalping',
+    payment_modal_desc: 'Unlock unlimited trading. Payment is one-time per month.',
+    payment_amount: 'Amount',
+    payment_period: 'Period',
+    payment_to_address: 'Send to',
+    payment_warning: 'Make sure to send USDC from your Rise wallet. Transaction will be confirmed within 30 seconds.',
+    payment_processing: '⏳ Processing payment...',
+    payment_sent: '✓ Transaction sent:',
+    payment_checking: '🔍 Checking payment status...',
+    payment_success: 'Subscription activated! Enjoy unlimited trading.',
+    payment_failed: 'Transaction failed. Please try again.',
+    payment_timeout: 'Payment check timeout. Please refresh page.',
+    login_required: 'Please login first',
+    signer_unlock_failed: 'Failed to unlock signer',
+});
+
+// Русский
+Object.assign(LANGUAGES.ru, {
+    btn_subscribe: 'Подписаться',
+    btn_renew: 'Продлить',
+    btn_subscribe_now: 'Подписаться сейчас',
+    btn_confirm_payment: 'Подтвердить платеж',
+    btn_cancel: 'Отмена',
+    subscription_trial: 'Пробный период',
+    subscription_active: 'Активна',
+    subscription_expired: 'Истекла - Подпишитесь для торговли',
+    subscription_month: 'месяц',
+    subscription_days: 'дней',
+    subscription_day: 'день',
+    subscription_loaded: 'Подписка загружена',
+    subscription_trial_start: 'Пробный период начался',
+    subscription_required_tooltip: 'Подпишитесь для разблокировки торговли',
+    subscription_already_active: 'Подписка уже активна',
+    payment_modal_title: 'Подписка на PLOV Scalping',
+    payment_modal_desc: 'Разблокируйте неограниченную торговлю. Платеж один раз в месяц.',
+    payment_amount: 'Сумма',
+    payment_period: 'Период',
+    payment_to_address: 'Отправить на',
+    payment_warning: 'Убедитесь, что отправляете USDC из вашего кошелька Rise. Транзакция будет подтверждена в течение 30 секунд.',
+    payment_processing: '⏳ Обработка платежа...',
+    payment_sent: '✓ Транзакция отправлена:',
+    payment_checking: '🔍 Проверка статуса платежа...',
+    payment_success: 'Подписка активирована! Наслаждайтесь неограниченной торговлей.',
+    payment_failed: 'Транзакция не удалась. Пожалуйста, попробуйте еще раз.',
+    payment_timeout: 'Время проверки платежа истекло. Пожалуйста, обновите страницу.',
+    login_required: 'Пожалуйста, сначала войдите',
+    signer_unlock_failed: 'Не удалось разблокировать подписчика',
+});
+
+// Китайский
+Object.assign(LANGUAGES.zh, {
+    btn_subscribe: '订阅',
+    btn_renew: '续订',
+    btn_subscribe_now: '立即订阅',
+    btn_confirm_payment: '确认支付',
+    btn_cancel: '取消',
+    subscription_trial: '试用期',
+    subscription_active: '已激活',
+    subscription_expired: '已过期 - 订阅以进行交易',
+    subscription_month: '月',
+    subscription_days: '天',
+    subscription_day: '天',
+    subscription_loaded: '订阅已加载',
+    subscription_trial_start: '试用期已开始',
+    subscription_required_tooltip: '订阅以解锁交易',
+    subscription_already_active: '订阅已激活',
+    payment_modal_title: 'PLOV Scalping 订阅',
+    payment_modal_desc: '解锁无限交易。每月一次付款。',
+    payment_amount: '金额',
+    payment_period: '期间',
+    payment_to_address: '发送至',
+    payment_warning: '确保从您的 Rise 钱包发送 USDC。交易将在 30 秒内确认。',
+    payment_processing: '⏳ 处理支付中...',
+    payment_sent: '✓ 交易已发送:',
+    payment_checking: '🔍 检查支付状态...',
+    payment_success: '订阅已激活！享受无限交易。',
+    payment_failed: '交易失败。请重试。',
+    payment_timeout: '支付检查超时。请刷新页面。',
+    login_required: '请先登录',
+    signer_unlock_failed: '无法解锁签署者',
+});
+
 window.setLanguage  = setLanguage;
 window.loadLanguage = loadLanguage;
 window.t            = t;

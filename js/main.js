@@ -61,6 +61,11 @@ window.addEventListener('DOMContentLoaded', async () => {
             await createOrLoadWallet(user.uid);
             if (!userWallet.address) return;
 
+            // Initialize subscription
+            if (typeof initSubscription === 'function') {
+                initSubscription(user.uid);
+            }
+
             updateBalanceUI();
             loadStats().catch(() => {});
             if (typeof loadMyTrades === 'function') loadMyTrades();

@@ -232,6 +232,28 @@
 <script src="js/risex.js"></script>
 <script src="js/trading.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/wallet.js"></script>
+<script src="js/subscription.js"></script>
 <script src="js/main.js"></script>
+
+<!-- PAYMENT MODAL -->
+<div id="payment-modal" class="modal-overlay">
+    <div class="modal-container">
+        <div class="modal-header">
+            <h2 class="modal-title">Subscribe to PLOV Scalping</h2>
+            <button class="modal-close" onclick="closePaymentModal()">✕</button>
+        </div>
+        <div class="modal-body"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closePaymentModal()">
+                <span data-i18n="btn_cancel">Cancel</span>
+            </button>
+            <button class="btn btn-primary" id="btn-confirm-payment" onclick="confirmPayment()">
+                <span data-i18n="btn_confirm_payment">Confirm Payment</span>
+            </button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
