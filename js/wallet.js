@@ -219,7 +219,16 @@ async function claimFaucet(address, uid) {
 // ── Баланс ───────────────────────────────────────────────────
 
 async function fetchBalance() {
-    // Симуляция — баланс хранится локально
+    // Загрузить реальный баланс из RISEx API
+    if (typeof getRealBalance === 'function') {
+        try {
+            const balance = await getRealBalance();
+            userBalance = balance;
+            console.log('Fetched real balance from RISEx:', balance);
+        } catch (error) {
+            console.warn('Failed to fetch real balance:', error);
+        }
+    }
     updateBalanceUI();
 }
 

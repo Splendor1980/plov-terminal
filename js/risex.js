@@ -554,48 +554,14 @@ function updateTickerUI(data) {
 // ── Размещение ордера ────────────────────────────────────────
 
 async function placeOrder(side, amountUsdc, leverage) {
-    if (!isSignerReady()) {
-        addToLog(t('signer_required'), 'error');
-        return false;
+    // Использовать реальную функцию из risex-real-trading.js
+    if (typeof placeRealOrder === 'function') {
+        return await placeRealOrder(side, amountUsdc, leverage);
     }
 
-    addToLog(t('order_pending'), 'pending');
-
-    const price = lastPrice || 0;
-    if (!price) { addToLog('❌ No price data', 'error'); return false; }
-
-    await new Promise(r => setTimeout(r, 400));
-
-    const positionSize = (amountUsdc * leverage) / price;
-
-    if (amountUsdc > userBalance) {
-        addToLog(`${t('balance_low')} ${userBalance.toFixed(2)})`, 'error');
-        return false;
-    }
-
-    // SIMULATION: track locally (real order placement pending RISEx API fixes)
-    userBalance -= amountUsdc;
-    updateBalanceUI();
-
-    const orderId = 'SIM-' + Date.now();
-    position = {
-        side:       side.toLowerCase(),
-        size:       positionSize,
-        entryPrice: price,
-        leverage,
-        margin:     amountUsdc,
-        orderId
-    };
-
-    addToLog(`✅ ${side} opened at ${price.toFixed(1)} USDC`, 'success');
-    addToLog(`📊 Size: ${positionSize.toFixed(6)} BTC × ${leverage}x`, 'meta');
-
-    updatePositionUI(position);
-    saveStats(side, amountUsdc * leverage, true);
-    if (typeof addMyTrade === 'function') {
-        addMyTrade(side, price, positionSize, leverage, null);
-    }
-    return true;
+    // Fallback если модуль не загружен
+    addToLog('❌ Real trading module not loaded', 'error');
+    return false;
 }
 
 
@@ -604,6 +570,11 @@ async function placeOrder(side, amountUsdc, leverage) {
 // ── Закрытие позиции (reduce-only) ──────────────────────────
 
 async function closePosition() {
+    // Использовать реальную функцию из risex-real-trading.js
+    if (typeof closeRealPosition === 'function') {
+        return await closeRealPosition();
+    }
+
     if (!position || !position.size || position.size <= 0) {
         addToLog(t('no_pos_close'), 'warning'); return;
     }
