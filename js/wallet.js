@@ -203,8 +203,11 @@ async function claimFaucet(address, uid) {
         addToLog(t('faucet_mock'), 'success');
     }
 
-    userWallet.balances.usdc = 1000;
-    userWallet.risexBalance  = 1000;
+    // Больше не раздаем тестовые токены - используем только реальный Mainnet
+    // Пользователь должен иметь реальные USDC для торговли
+    // userWallet.balances.usdc = 1000;    // ← УДАЛЕНО
+    // userWallet.risexBalance  = 1000;    // ← УДАЛЕНО
+    
     userWallet.faucetClaimed = true;
     if (uid) saveWalletLocal(uid);
     updateBalanceUI();
