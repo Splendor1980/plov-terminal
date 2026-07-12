@@ -171,19 +171,18 @@ async function getRealBalance() {
     }
 
     try {
-        // Попробовать несколько вариантов endpoint
-        const endpoints = [
-            `https://api.rise.trade/v1/account/balance?account=${signerAddress}`,
-            `https://www.rise.trade/api/v1/account/balance?account=${signerAddress}`,
-            `${RISEX_API.rest}/v1/account/balance?account=${signerAddress}`
+        // Использовать backend proxy через Vercel (избегает CORS блокировки)
+        const backendEndpoints = [
+            `/api/check-payment?action=balance&userAddress=${signerAddress}`,
+            `${window.location.origin}/api/check-payment?action=balance&userAddress=${signerAddress}`
         ];
 
         let response = null;
         let lastError = null;
 
-        for (const endpoint of endpoints) {
+        for (const endpoint of backendEndpoints) {
             try {
-                console.log('Trying balance endpoint:', endpoint);
+                console.log('📊 Fetching balance from backend:', endpoint);
                 response = await fetch(endpoint, {
                     method: 'GET',
                     headers: {
@@ -192,28 +191,28 @@ async function getRealBalance() {
                 });
 
                 if (response.ok) {
-                    console.log('✅ Balance endpoint worked:', endpoint);
+                    console.log('✅ Backend endpoint worked:', endpoint);
                     break;
                 } else {
                     lastError = `Status ${response.status}`;
-                    console.warn(`Endpoint failed: ${endpoint} - ${response.status}`);
+                    console.warn(`Backend endpoint failed: ${endpoint} - ${response.status}`);
                 }
             } catch (e) {
                 lastError = e.message;
-                console.warn(`Endpoint error: ${endpoint} -`, e.message);
+                console.warn(`Backend endpoint error: ${endpoint} -`, e.message);
             }
         }
 
         if (!response || !response.ok) {
-            console.warn('Failed to fetch balance from any endpoint:', lastError);
-            // Fallback: использовать локальный баланс если доступен
-            return userBalance || 0;
+            console.warn('Failed to fetch balance from backend:', lastError);
+            // Fallback: вернуть 0 (пользователь должен проверить баланс на rise.trade)
+            return 0;
         }
 
         const data = await response.json();
-        console.log('Balance API response:', data);
+        console.log('✅ Balance API response:', data);
         
-        // Парсинг баланса из ответа API (несколько форматов)
+        // Парсинг баланса из ответа
         let balance = 0;
         
         if (data.balance !== undefined) {
@@ -228,24 +227,22 @@ async function getRealBalance() {
             balance = parseFloat(data);
         }
 
-        // Если значение в wei (очень большое число) - конвертировать
+        // Если значение в wei - конвертировать
         if (balance > 1e15) {
             balance = balance / 1e18;
         }
 
-        // Санитайз: если баланс отрицательный или NaN
+        // Санитайз
         if (isNaN(balance) || balance < 0) {
             balance = 0;
         }
 
-        userBalance = balance;
         console.log('✅ Real balance loaded:', balance, 'USDC');
         return balance;
 
     } catch (error) {
         console.error('Get balance error:', error);
-        // Fallback на локальный баланс
-        return userBalance || 0;
+        return 0;
     }
 }
 

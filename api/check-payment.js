@@ -306,7 +306,59 @@ module.exports = async (req, res) => {
             });
         }
 
-        return res.status(400).json({ error: 'Unknown action' });
+        // ── Получить баланс пользователя ──────────────────────
+
+        if (action === 'balance' && userAddress) {
+            console.log(`Fetching balance for: ${userAddress}`);
+            
+            try {
+                const response = await fetch(
+                    `${RISEX_API.rest}/v1/account/balance?account=${userAddress}`,
+                    {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    let balance = 0;
+                    if (data.free !== undefined) {
+                        balance = parseFloat(data.free);
+                    } else if (data.available !== undefined) {
+                        balance = parseFloat(data.available);
+                    } else if (data.balance !== undefined) {
+                        balance = parseFloat(data.balance);
+                    } else if (data.equity !== undefined) {
+                        balance = parseFloat(data.equity);
+                    }
+
+                    // Конвертировать из wei если нужно
+                    if (balance > 1e15) {
+                        balance = balance / 1e18;
+                    }
+
+                    return res.status(200).json({
+                        userAddress: userAddress,
+                        balance: balance,
+                        success: true
+                    });
+                } else {
+                    return res.status(response.status).json({
+                        error: 'RISEx API error',
+                        status: response.status
+                    });
+                }
+            } catch (error) {
+                console.error('Balance fetch error:', error);
+                return res.status(500).json({
+                    error: error.message
+                });
+            }
+        }
 
     } catch (error) {
         console.error('API Error:', error);
