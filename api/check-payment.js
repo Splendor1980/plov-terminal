@@ -10,9 +10,12 @@ export default async function handler(req, res) {
 
     if (action === 'balance' && userAddress) {
         try {
-            // Прямой запрос к RISEx API (без зависимости от переменных окружения)
+            // USDC контракт на Rise Mainnet
+            const usdcAddress = "0xe436820ba0c69702c1d3e601d421c0ef38262739";
+
+            // Прямой запрос к RISEx API с правильным параметром token
             const risexResponse = await fetch(
-                `https://api.rise.trade/v1/account/balance?account=${userAddress}`,
+                `https://api.rise.trade/v1/account/balance?account=${userAddress}&token=${usdcAddress}`,
                 {
                     method: 'GET',
                     headers: {
@@ -32,7 +35,7 @@ export default async function handler(req, res) {
             }
 
             const data = await risexResponse.json();
-            console.log('Balance fetched successfully:', data);
+            console.log('Balance fetched successfully for', userAddress, ':', data);
             return res.status(200).json(data);
 
         } catch (error) {
