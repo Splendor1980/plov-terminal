@@ -171,68 +171,41 @@ async function getRealBalance() {
     }
 
     try {
-        // Использовать backend proxy через Vercel (избегает CORS блокировки)
-        const backendEndpoints = [
-            `/api/check-payment?action=balance&userAddress=${signerAddress}`,
-            `${window.location.origin}/api/check-payment?action=balance&userAddress=${signerAddress}`
-        ];
-
-        let response = null;
-        let lastError = null;
-
-        for (const endpoint of backendEndpoints) {
-            try {
-                console.log('📊 Fetching balance from backend:', endpoint);
-                response = await fetch(endpoint, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-
-                if (response.ok) {
-                    console.log('✅ Backend endpoint worked:', endpoint);
-                    break;
-                } else {
-                    lastError = `Status ${response.status}`;
-                    console.warn(`Backend endpoint failed: ${endpoint} - ${response.status}`);
-                }
-            } catch (e) {
-                lastError = e.message;
-                console.warn(`Backend endpoint error: ${endpoint} -`, e.message);
+        const endpoint = `/api/check-payment?action=balance&userAddress=${signerAddress}`;
+        
+        console.log('📊 Fetching balance from backend:', endpoint);
+        
+        const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
             }
-        }
+        });
 
-        if (!response || !response.ok) {
-            console.warn('Failed to fetch balance from backend:', lastError);
-            // Fallback: вернуть 0 (пользователь должен проверить баланс на rise.trade)
-            return 0;
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Balance API error - Status:', response.status);
+            console.error('Error details:', errorText);
+            return 0;  // Fallback
         }
 
         const data = await response.json();
         console.log('✅ Balance API response:', data);
         
-        // Парсинг баланса из ответа
-        let balance = 0;
+        // Более умный парсинг - проверить все возможные поля
+        let balance = data.balance ?? data.free ?? data.available ?? data.equity ?? 0;
         
-        if (data.balance !== undefined) {
-            balance = parseFloat(data.balance);
-        } else if (data.free !== undefined) {
-            balance = parseFloat(data.free);
-        } else if (data.available !== undefined) {
-            balance = parseFloat(data.available);
-        } else if (data.equity !== undefined) {
-            balance = parseFloat(data.equity);
-        } else if (typeof data === 'string') {
-            balance = parseFloat(data);
+        // Конвертировать если строка
+        if (typeof balance === 'string') {
+            balance = parseFloat(balance);
         }
-
-        // Если значение в wei - конвертировать
+        
+        // Конвертировать из wei если нужно (очень большое число)
         if (balance > 1e15) {
             balance = balance / 1e18;
         }
 
-        // Санитайз
+        // Санитайз - если NaN или отрицательное
         if (isNaN(balance) || balance < 0) {
             balance = 0;
         }
@@ -241,7 +214,7 @@ async function getRealBalance() {
         return balance;
 
     } catch (error) {
-        console.error('Get balance error:', error);
+        console.error('❌ Get balance error:', error);
         return 0;
     }
 }
