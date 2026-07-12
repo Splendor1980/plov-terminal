@@ -252,37 +252,9 @@ async function handleDeposit() {
 }
 
 async function handleWithdraw() {
-    if (!isLoggedIn) { addToLog(t('login_required'), 'error'); return; }
-    const ok = await unlockSigner(currentUser.uid);
-    if (!ok) return;
-
-    const balance = userWallet.risexBalance || userWallet.balances.usdc || 0;
-    if (balance <= 0) { addToLog(t('no_funds'), 'warning'); return; }
-
-    const to  = prompt(t('withdraw_to'));
-    if (!to || !to.startsWith('0x') || to.length !== 42) { addToLog(t('addr_invalid'), 'error'); return; }
-    const amt = parseFloat(prompt(t('withdraw_amount'), '10') || '0');
-    if (!amt || amt <= 0) return;
-    if (!confirm(`${t('withdraw_confirm')}\n${to}\n${amt} USDC`)) return;
-
-    try {
-        addToLog(t('withdraw_pending'), 'pending');
-        if (!RISEX_CONTRACTS.usdc) { addToLog(t('withdraw_no_addr'), 'error'); return; }
-        const ERC20 = ['function transfer(address,uint256) returns(bool)', 'function decimals() view returns(uint8)'];
-        const token = new ethers.Contract(RISEX_CONTRACTS.usdc, ERC20, signer);
-        const dec   = await token.decimals();
-        const tx    = await token.transfer(to, ethers.parseUnits(String(amt), dec));
-        addToLog(`${t('tx_pending')} ${tx.hash.slice(0,18)}...`, 'pending');
-        await tx.wait(1);
-        userWallet.risexBalance  = Math.max(0, userWallet.risexBalance - amt);
-        userWallet.balances.usdc = Math.max(0, (userWallet.balances.usdc||0) - amt);
-        saveWalletLocal(currentUser.uid);
-        updateBalanceUI();
-        addToLog(`${t('withdraw_success')} ${amt} USDC`, 'success');
-        addToLog(t('tx_explorer'), 'link', `${RISE_CHAIN.explorer}/tx/${tx.hash}`);
-    } catch (e) {
-        addToLog('❌ ' + (e.message||e).toString().slice(0,100), 'error');
-    }
+    // Редирект на Rise для вывода (API pending)
+    addToLog('📖 Opening Rise Withdraw page...', 'info');
+    window.open('https://www.rise.trade/en/portfolio', '_blank', 'noopener');
 }
 
 // ── UI ───────────────────────────────────────────────────────

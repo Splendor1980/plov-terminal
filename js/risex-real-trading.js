@@ -166,42 +166,86 @@ async function placeRealOrder(side, amountUsdc, leverage) {
 
 async function getRealBalance() {
     if (!signerAddress) {
+        console.warn('getRealBalance: signerAddress not set');
         return 0;
     }
 
     try {
-        const response = await fetch(
+        // Попробовать несколько вариантов endpoint
+        const endpoints = [
+            `https://api.rise.trade/v1/account/balance?account=${signerAddress}`,
+            `https://www.rise.trade/api/v1/account/balance?account=${signerAddress}`,
             `${RISEX_API.rest}/v1/account/balance?account=${signerAddress}`
-        );
+        ];
 
-        if (!response.ok) {
-            console.warn('Failed to fetch balance:', response.status);
-            return 0;
+        let response = null;
+        let lastError = null;
+
+        for (const endpoint of endpoints) {
+            try {
+                console.log('Trying balance endpoint:', endpoint);
+                response = await fetch(endpoint, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    console.log('✅ Balance endpoint worked:', endpoint);
+                    break;
+                } else {
+                    lastError = `Status ${response.status}`;
+                    console.warn(`Endpoint failed: ${endpoint} - ${response.status}`);
+                }
+            } catch (e) {
+                lastError = e.message;
+                console.warn(`Endpoint error: ${endpoint} -`, e.message);
+            }
+        }
+
+        if (!response || !response.ok) {
+            console.warn('Failed to fetch balance from any endpoint:', lastError);
+            // Fallback: использовать локальный баланс если доступен
+            return userBalance || 0;
         }
 
         const data = await response.json();
+        console.log('Balance API response:', data);
         
-        // Парсинг баланса из ответа API
+        // Парсинг баланса из ответа API (несколько форматов)
         let balance = 0;
-        if (data.free !== undefined) {
+        
+        if (data.balance !== undefined) {
+            balance = parseFloat(data.balance);
+        } else if (data.free !== undefined) {
             balance = parseFloat(data.free);
         } else if (data.available !== undefined) {
             balance = parseFloat(data.available);
-        } else if (data.balance !== undefined) {
-            balance = parseFloat(data.balance);
+        } else if (data.equity !== undefined) {
+            balance = parseFloat(data.equity);
+        } else if (typeof data === 'string') {
+            balance = parseFloat(data);
         }
 
-        // Если значение в wei (очень большое число)
+        // Если значение в wei (очень большое число) - конвертировать
         if (balance > 1e15) {
             balance = balance / 1e18;
         }
 
+        // Санитайз: если баланс отрицательный или NaN
+        if (isNaN(balance) || balance < 0) {
+            balance = 0;
+        }
+
         userBalance = balance;
+        console.log('✅ Real balance loaded:', balance, 'USDC');
         return balance;
 
     } catch (error) {
-        console.warn('Get balance error:', error);
-        return 0;
+        console.error('Get balance error:', error);
+        // Fallback на локальный баланс
+        return userBalance || 0;
     }
 }
 

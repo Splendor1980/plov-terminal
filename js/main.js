@@ -61,6 +61,17 @@ window.addEventListener('DOMContentLoaded', async () => {
             await createOrLoadWallet(user.uid);
             if (!userWallet.address) return;
 
+            // Попытка загрузить сохраненный signer
+            if (typeof loadSignerFromStorage === 'function') {
+                const signerLoaded = loadSignerFromStorage(user.uid);
+                if (signerLoaded) {
+                    addToLog('✅ Signer restored from storage', 'success');
+                    updateSignerUI();
+                    // Загрузить баланс сразу
+                    setTimeout(() => fetchBalance(), 500);
+                }
+            }
+
             // Initialize subscription
             if (typeof initSubscription === 'function') {
                 initSubscription(user.uid);

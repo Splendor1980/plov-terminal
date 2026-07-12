@@ -271,7 +271,8 @@ function _connectWS(marketId) {
 
             _ws.send(JSON.stringify({ method: 'subscribe', params: { channel: 'orderbook', market_ids: [marketId] } }));
             _ws.send(JSON.stringify({ method: 'subscribe', params: { channel: 'trades',    market_ids: [marketId] } }));
-            _ws.send(JSON.stringify({ method: 'subscribe', params: { channel: 'ticker',    market_ids: [marketId] } }));
+            // Ticker канал не поддерживается в текущей версии RISEx
+            // _ws.send(JSON.stringify({ method: 'subscribe', params: { channel: 'ticker',    market_ids: [marketId] } }));
 
             if (window._wsHeartbeat) clearInterval(window._wsHeartbeat);
             window._wsHeartbeat = setInterval(() => {
