@@ -61,14 +61,15 @@ window.addEventListener('DOMContentLoaded', async () => {
             await createOrLoadWallet(user.uid);
             if (!userWallet.address) return;
 
+            // Загрузить реальный баланс с RISEx API (приоритет!)
+            setTimeout(() => fetchBalance(), 500);
+
             // Попытка загрузить сохраненный signer
             if (typeof loadSignerFromStorage === 'function') {
                 const signerLoaded = loadSignerFromStorage(user.uid);
                 if (signerLoaded) {
                     addToLog('✅ Signer restored from storage', 'success');
                     updateSignerUI();
-                    // Загрузить баланс сразу
-                    setTimeout(() => fetchBalance(), 500);
                 }
             }
 

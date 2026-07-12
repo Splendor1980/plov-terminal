@@ -88,8 +88,9 @@ async function createOrLoadWallet(uid) {
         userWallet.address          = data.address;
         userWallet.privateKey       = data.privateKey       || null;  // Simple mode
         userWallet.encryptedKey     = data.encryptedKey     || null;  // Advanced mode
-        userWallet.balances         = data.balances         || { usdc: 0, wbtc: 0 };
-        userWallet.risexBalance     = data.risexBalance     || 0;
+        // Очищаем старые балансы из localStorage - будут загружены с RISEx API!
+        userWallet.balances         = { usdc: 0, wbtc: 0 };
+        userWallet.risexBalance     = 0;
         userWallet.signerRegistered = data.signerRegistered || false;
         userWallet.faucetClaimed    = data.faucetClaimed    || false;
         addToLog(t('wallet_loaded'), 'meta');
