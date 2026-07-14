@@ -2,7 +2,7 @@
 // js/risex-real-trading.js - REAL TRADING MODULE
 // ============================================================
 // Rise Mainnet (chainId 4153)
-// Баланс: прямой запрос к api.rise.trade с &token=USDC
+// Баланс: через backend proxy /api/check-payment (обход CORS)
 // Торговля: через risex-client SDK (CDN)
 // ============================================================
 
@@ -15,10 +15,10 @@ async function getRealBalance() {
     }
 
     try {
-        const usdcAddress = "0xe436820ba0c69702c1d3e601d421c0ef38262739"; // USDC Rise Mainnet
-        const url = `https://api.rise.trade/v1/account/balance?account=${signerAddress}&token=${usdcAddress}`;
+        // Через backend proxy на Vercel (обход CORS!)
+        const url = `/api/check-payment?action=balance&userAddress=${signerAddress}`;
 
-        console.log('📊 Fetching balance from:', url);
+        console.log('📊 Fetching balance via proxy:', url);
 
         const response = await fetch(url, {
             method: 'GET',
@@ -27,12 +27,12 @@ async function getRealBalance() {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            console.error('❌ RISEx API Error:', response.status, errorData);
+            console.error('❌ Balance proxy error:', response.status, errorData);
             return 0;
         }
 
         const data = await response.json();
-        console.log('✅ Balance API response:', data);
+        console.log('✅ Balance response:', data);
 
         let balance = parseFloat(
             data.balance ?? data.free ?? data.available ?? data.equity ?? data.usdc ?? 0
