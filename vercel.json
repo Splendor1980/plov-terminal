@@ -2,8 +2,8 @@
   "version": 2,
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://api.rise.trade/:path*"
+      "source": "/api/v1/:path*",
+      "destination": "https://api.rise.trade/v1/:path*"
     },
     {
       "source": "/(.*)",
