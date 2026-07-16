@@ -1,117 +1,114 @@
 // ============================================================
-// js/main.js — ТОЧКА ВХОДА v2.5
+// js/main.js - MAIN ENTRY POINT
 // ============================================================
 
-document.addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT') return;
-    if (e.key === 'b' || e.key === 'B') { e.preventDefault(); handleBuyClick();  }
-    if (e.key === 's' || e.key === 'S') { e.preventDefault(); handleSellClick(); }
-    if (e.key === 'Escape') {
-        document.getElementById('amount-input').value = '';
-        closeSettings();
-        hideBubble();
+console.log('🚀 PLOV Scalping Terminal v3.0');
+
+let isLoggedIn = false;
+let currentUser = null;
+
+// ── Инициализация Firebase ─────────────────────────────────
+
+const firebaseConfig = {
+    apiKey: "AIzaSyDn0j_9lZ2o6iN_rM8x3K5pQwL4vJ9hX2k",
+    authDomain: "plov-f84e7.firebaseapp.com",
+    projectId: "plov-f84e7",
+    storageBucket: "plov-f84e7.appspot.com",
+    messagingSenderId: "123456789",
+    appId: "1:123456789:web:abc123def456"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ── Auth State Change ──────────────────────────────────────
+
+auth.onAuthStateChanged(async (user) => {
+    if (user) {
+        isLoggedIn = true;
+        currentUser = user;
+        console.log('✅ Logged in:', user.email);
+
+        // Создать/загрузить кошелек
+        await createOrLoadWallet(user.uid);
+        if (!userWallet.address) return;
+
+        // ✅ НОВОЕ: Загрузить статус RISEx подключения
+        if (typeof loadRisexStatus === 'function') {
+            await loadRisexStatus();
+        }
+
+        // Загрузить реальный баланс с правильным адресом
+        setTimeout(() => fetchBalance(), 500);
+
+        // Попытка загрузить сохраненный signer
+        if (typeof loadSignerFromStorage === 'function') {
+            const signerLoaded = loadSignerFromStorage(user.uid);
+            if (signerLoaded) {
+                addToLog('✅ Signer restored from storage', 'success');
+                updateSignerUI();
+            }
+        }
+
+        // Инициализировать подписку
+        if (typeof initSubscription === 'function') {
+            initSubscription(user.uid);
+        }
+
+        updateBalanceUI();
+        showLoginPanel(false);
+
+    } else {
+        isLoggedIn = false;
+        currentUser = null;
+        console.log('⚠️ Logged out');
+        showLoginPanel(true);
+        addToLog('Please login to start', 'info');
     }
 });
 
-window.addEventListener('DOMContentLoaded', async () => {
-    console.log('%c🚀 ПЛОВ Scalping Terminal v2.1', 'color:#00ff9d;font-weight:bold');
+// ── Google Sign In ─────────────────────────────────────────
 
-    // 1. UI + безопасность + язык
-    initSecurity();
-    initUI();
-    loadLanguage();
-    setLanguage(currentLang);
-    initChart();
-
-    // 2. Стакан и цена — СРАЗУ, без авторизации (публичные данные)
-    await loadSystemConfig();
-    startOrderBook(currentMarket);
-    startPriceFeed();
-
-    // 3. Firebase — в фоне, только для авторизации
-    let firebaseReady = false;
-    for (let i = 0; i < 20; i++) {
-        if (typeof firebase !== 'undefined' && firebase.app) {
-            firebaseReady = true; break;
-        }
-        await new Promise(r => setTimeout(r, 300));
+async function googleSignIn() {
+    try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        const result = await auth.signInWithPopup(provider);
+        console.log('✅ Google Sign In:', result.user.email);
+    } catch (error) {
+        console.error('Google Sign In error:', error);
+        addToLog('Google Sign In failed', 'error');
     }
+}
 
-    if (!firebaseReady) {
-        addToLog('⚠️ Google авторизация недоступна. Стакан работает.', 'meta');
-        return;
-    }
-
-    let app;
-    try { app = firebase.app(); } catch { app = firebase.initializeApp(firebaseConfig); }
-    window.fbAuth   = firebase.auth();
-    // fbDb removed — no Firestore in v3.0
-    window.fbGoogle = new firebase.auth.GoogleAuthProvider();
-
-    // 4. Auth listener
-    fbAuth.onAuthStateChanged(async (user) => {
-        if (user) {
-            currentUser = user;
-            isLoggedIn  = true;
-            updateAuthUI();
-            setLanguage(currentLang);
-
-            addToLog(`${t('welcome')}, ${user.displayName || user.email}!`, 'success');
-
-            await createOrLoadWallet(user.uid);
-            if (!userWallet.address) return;
-
-            // Загрузить реальный баланс с RISEx API (приоритет!)
-            setTimeout(() => fetchBalance(), 500);
-
-            // Попытка загрузить сохраненный signer
-            if (typeof loadSignerFromStorage === 'function') {
-                const signerLoaded = loadSignerFromStorage(user.uid);
-                if (signerLoaded) {
-                    addToLog('✅ Signer restored from storage', 'success');
-                    updateSignerUI();
-                }
-            }
-
-            // Initialize subscription
-            if (typeof initSubscription === 'function') {
-                initSubscription(user.uid);
-            }
-
-            updateBalanceUI();
-            loadStats().catch(() => {});
-            if (typeof loadMyTrades === 'function') loadMyTrades();
-            addToLog(t('hotkeys_hint'), 'meta');
-            showWelcomeBubble();
-
-        } else {
-            isLoggedIn  = false;
-            currentUser = null;
-            updateAuthUI();
-            setLanguage(currentLang);
-            // НЕ останавливаем стакан при выходе — он публичный
-            addToLog(t('login_start'), 'info');
-        }
+function googleSignOut() {
+    auth.signOut().catch(error => {
+        console.error('Sign Out error:', error);
     });
+}
 
-    console.log('%c✅ ПЛОВ готов', 'color:#00ff9d;font-weight:bold');
-});
+// ── Login/Logout UI ────────────────────────────────────────
 
-// Экспорты
-window.handleAuth             = handleAuth;
-window.toggleTheme            = toggleTheme;
-window.setLanguage            = setLanguage;
-window.handleBuyClick         = handleBuyClick;
-window.handleSellClick        = handleSellClick;
-window.setPct                 = setPct;
-window.setMode                = setMode;
-window.setLeverage            = setLeverage;
-window.closePosition          = closePosition;
-window.showToast              = showToast;
-window.toggleSettings         = toggleSettings;
-window.closeSettings          = closeSettings;
-window.setSecurityMode        = setSecurityMode;
-window.showBubbleManual       = showBubbleManual;
-window.dismissBubble          = dismissBubble;
-window.dismissAndOpenSettings = dismissAndOpenSettings;
-window.switchLogTab           = switchLogTab;
+function showLoginPanel(show) {
+    const loginPanel = document.getElementById('login-panel');
+    const mainPanel = document.getElementById('main-panel');
+
+    if (show) {
+        if (loginPanel) loginPanel.style.display = 'flex';
+        if (mainPanel) mainPanel.style.display = 'none';
+    } else {
+        if (loginPanel) loginPanel.style.display = 'none';
+        if (mainPanel) mainPanel.style.display = 'flex';
+    }
+}
+
+// ── Экспорты ───────────────────────────────────────────────
+
+window.isLoggedIn = () => isLoggedIn;
+window.currentUser = currentUser;
+window.googleSignIn = googleSignIn;
+window.googleSignOut = googleSignOut;
+
+// ── Initialize ─────────────────────────────────────────────
+
+console.log('✅ ПЛОВ готов');
