@@ -9,7 +9,7 @@ const url = require('url');
 const RISE_RPC       = 'https://mainnet.riselabs.xyz';
 const USDC_ADDRESS   = '0xe436820ba0c69702c1d3e601d421c0ef38262739';
 const PAYMENT_ADDRESS = '0x3A7B2c686b2ED20798011D17141DD74123521a4b';
-const RISEX_API_REST = 'https://api.rise.trade';
+const RISEX_API_REST = 'https://api.rise.trade/api';  // ✅ ДОБАВЛЕН /api!
 
 function setCorsHeaders(res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -41,14 +41,14 @@ module.exports = async function handler(req, res) {
 
     const { action, userAddress } = req.query;
 
-    // ── Balance (БЕЗ &token=) ──────────────────────────────
+    // ── Balance (с правильным базовым URL + &token=) ──────
 
     if (action === 'balance' && userAddress) {
         try {
             console.log(`[balance] Fetching for ${userAddress}`);
 
-            // ✅ БЕЗ &token= параметра!
-            const risexUrl = `${RISEX_API_REST}/v1/account/balance?account=${userAddress}`;
+            // ✅ ПРАВИЛЬНЫЙ URL с /api и &token=
+            const risexUrl = `${RISEX_API_REST}/v1/account/balance?account=${userAddress}&token=${USDC_ADDRESS}`;
             console.log(`[balance] URL: ${risexUrl}`);
 
             const { status, data } = await httpGet(risexUrl);
