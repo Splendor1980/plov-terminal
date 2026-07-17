@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PLOV Scalping Terminal v3.0</title>
     <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -165,35 +165,6 @@
     <!-- RIGHT -->
     <div class="panel panel-right">
 
-        <!-- RISEx Connect section -->
-        <div class="section" id="risex-connect-section">
-            <div class="section-title">🔗 Connect RISEx Wallet</div>
-            <div id="risex-status" style="margin-bottom: 10px; font-weight: bold;">
-                ❌ <span style="color: #ff6b6b;">Not Connected</span>
-            </div>
-            <div id="risex-not-connected">
-                <p style="font-size: 12px; color: #999; margin-bottom: 10px;">
-                    Enter your RISEx API Wallet address to access real trading.
-                </p>
-                <div class="signer-input-row">
-                    <input type="text" id="risex-wallet-input" placeholder="0x... (your RISEx wallet address)" autocomplete="off">
-                    <button class="btn-sm btn-green" onclick="connectRisexWallet()">Connect</button>
-                </div>
-                <p style="font-size: 11px; color: #666; margin-top: 8px;">
-                    💡 Get your wallet address from rise.trade → Portfolio
-                </p>
-            </div>
-            <div id="risex-connected" style="display:none">
-                <div style="margin-bottom: 10px;">
-                    <span style="font-size: 12px; color: #999;">Connected Address:</span>
-                    <div style="background: rgba(0,255,157,0.1); padding: 8px; border-radius: 4px; margin-top: 5px;">
-                        <span id="risex-wallet-address-display" style="font-size: 12px; font-family: monospace; word-break: break-all;"></span>
-                    </div>
-                </div>
-                <button class="btn-sm btn-red" onclick="disconnectRisexWallet()">Disconnect</button>
-            </div>
-        </div>
-
         <!-- Signer Key section -->
         <div class="section" id="signer-section">
             <div class="section-title" id="signer-title">🔑 RISEx API Key</div>
@@ -280,11 +251,29 @@
 <script src="js/auth.js"></script>
 <script src="js/risex.js"></script>
 <script src="js/risex-real-trading.js"></script>
-<script src="js/risex-connect.js"></script>
 <script src="js/trading.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/subscription.js"></script>
-<script src="js/main.js"></script>
+
+<script>
+// ============================================================
+// Bootstrap — раньше НИЧЕГО из этого нигде не вызывалось,
+// поэтому график/стакан/цена/тема никогда не инициализировались.
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Не требует логина — можно показывать сразу
+    initSecurity();
+    initUI();
+    initChart();
+    showWelcomeBubble();
+
+    // Публичные рыночные данные — не требуют логина
+    loadSystemConfig();
+    startOrderBook(currentMarket);
+    startPriceFeed();
+});
+</script>
+
 
 <!-- PAYMENT MODAL -->
 <div id="payment-modal" class="modal-overlay">

@@ -40,6 +40,11 @@ let RISEX_CONTRACTS = {
     perpsManager: null, authorization: null, collateral: null
 };
 
+// Используется как fallback, пока loadSystemConfig() не подтянет
+// актуальный адрес USDC из /v1/system/config
+const FALLBACK_USDC_ADDRESS = '0xe436820ba0c69702c1d3e601d421c0ef38262739';
+window.FALLBACK_USDC_ADDRESS = FALLBACK_USDC_ADDRESS;
+
 const MARKETS = { BTC: 1, ETH: 2 };
 
 let currentLang     = 'en';

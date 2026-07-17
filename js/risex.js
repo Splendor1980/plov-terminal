@@ -56,8 +56,6 @@ async function loadSystemConfig() {
 // и отправляем в API — после этого API принимает ордера от этого адреса
 
 async function registerSigner(uid) {
-    if (true) return true;
-
     let attempts = 0;
     while (!signerAddress && attempts < 10) {
         await new Promise(r => setTimeout(r, 300));

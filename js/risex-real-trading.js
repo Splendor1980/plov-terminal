@@ -9,16 +9,16 @@
 // ── Получение реального баланса (с использованием Firestore адреса) ─
 
 async function getRealBalance() {
-    if (!currentUser || !currentUser.uid) {
-        console.warn('getRealBalance: no currentUser');
+    if (!signerAddress) {
+        console.warn('getRealBalance: no signer connected yet');
         return 0;
     }
 
     try {
-        // Запрашиваем баланс через backend, передавая uid
-        const url = `/api/check-payment?action=balance&uid=${currentUser.uid}`;
+        const usdc = (window.RISEX_CONTRACTS && RISEX_CONTRACTS.usdc) || FALLBACK_USDC_ADDRESS;
+        const url  = `${RISEX_API.rest}/v1/account/balance?account=${signerAddress}&token=${usdc}`;
 
-        console.log('📊 Fetching balance via proxy:', url);
+        console.log('📊 Fetching balance:', url);
 
         const response = await fetch(url, {
             method: 'GET',
@@ -26,27 +26,20 @@ async function getRealBalance() {
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error('❌ Balance proxy error:', response.status, errorData);
-            
-            // Если ошибка 404 или 400 - значит RISEx не подключен
-            if (response.status === 404 || response.status === 400) {
-                console.warn('⚠️ RISEx wallet not connected for this user');
-            }
-            
+            console.warn('⚠️ Balance request failed:', response.status);
             return 0;
         }
 
-        const data = await response.json();
-        console.log('✅ Balance response:', data);
+        const raw  = await response.json();
+        const data = raw.data || raw;
 
         let balance = parseFloat(
             data.balance ?? data.free ?? data.available ?? data.equity ?? 0
         );
 
-        if (typeof balance === 'string') balance = parseFloat(balance);
-        if (balance > 1e15) balance = balance / 1e18;
-        if (isNaN(balance) || balance < 0) balance = 0;
+        if (isNaN(balance)) balance = 0;
+        if (balance > 1e15) balance = balance / 1e18; // значение в wei
+        if (balance < 0) balance = 0;
 
         console.log('✅ Real USDC Balance loaded:', balance, 'USDC');
         return balance;
@@ -174,7 +167,7 @@ async function placeManualOrder(side, amountUsdc, leverage) {
     try {
         const positionSize = (amountUsdc * leverage) / lastPrice;
 
-        const response = await fetch('https://api.rise.trade/api/v1/orders/place', {
+        const response = await fetch(`${RISEX_API.rest}/v1/orders/place`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -259,7 +252,7 @@ async function loadRealPosition() {
 
     try {
         const response = await fetch(
-            `https://api.rise.trade/api/v1/account/position?market_id=${currentMarket}&account=${signerAddress}`
+            `${RISEX_API.rest}/v1/account/position?market_id=${currentMarket}&account=${signerAddress}`
         );
 
         if (!response.ok) return;
@@ -300,7 +293,7 @@ async function fetchOrderHistory(limit = 10) {
 
     try {
         const response = await fetch(
-            `https://api.rise.trade/api/v1/account/orders?account=${signerAddress}&limit=${limit}`
+            `${RISEX_API.rest}/v1/account/orders?account=${signerAddress}&limit=${limit}`
         );
 
         if (!response.ok) return [];

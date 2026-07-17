@@ -12,30 +12,25 @@ const RISE_API_URL = 'https://www.rise.trade/en/API';
 const SIGNER_STORAGE_KEY = 'plov_signer_key_encrypted';
 
 // ── Шифрование/дешифрование приватного ключа ───────────────
+// Реальное AES-GCM+PBKDF2 (функции encryptKey/decryptKey из wallet.js),
+// вместо предыдущего обратимого XOR с uid, который не давал
+// реальной защиты (uid известен любому, у кого есть доступ к
+// localStorage жертвы).
 
-function encryptSignerKey(key, uid) {
+async function encryptSignerKey(key, uid) {
     try {
-        // Простое шифрование XOR с uid (NOT CRYPTOGRAPHICALLY SECURE - только для базовой защиты)
-        // В production должно быть настоящее шифрование
-        let encrypted = '';
-        for (let i = 0; i < key.length; i++) {
-            encrypted += String.fromCharCode(key.charCodeAt(i) ^ uid.charCodeAt(i % uid.length));
-        }
-        return btoa(encrypted);  // Base64 encode
+        const payload = await encryptKey(key, uid);
+        return btoa(JSON.stringify(payload));
     } catch (e) {
         console.warn('Encryption failed:', e);
         return null;
     }
 }
 
-function decryptSignerKey(encrypted, uid) {
+async function decryptSignerKey(encrypted, uid) {
     try {
-        const decoded = atob(encrypted);  // Base64 decode
-        let decrypted = '';
-        for (let i = 0; i < decoded.length; i++) {
-            decrypted += String.fromCharCode(decoded.charCodeAt(i) ^ uid.charCodeAt(i % uid.length));
-        }
-        return decrypted;
+        const payload = JSON.parse(atob(encrypted));
+        return await decryptKey(payload, uid);
     } catch (e) {
         console.warn('Decryption failed:', e);
         return null;
@@ -44,11 +39,11 @@ function decryptSignerKey(encrypted, uid) {
 
 // ── Сохранение signer ──────────────────────────────────────
 
-function saveSignerToStorage(key, uid) {
+async function saveSignerToStorage(key, uid) {
     if (!key || !uid) return false;
     
     try {
-        const encrypted = encryptSignerKey(key, uid);
+        const encrypted = await encryptSignerKey(key, uid);
         if (!encrypted) return false;
         
         localStorage.setItem(SIGNER_STORAGE_KEY + '_' + uid, encrypted);
@@ -63,7 +58,7 @@ function saveSignerToStorage(key, uid) {
 
 // ── Загрузка signer из localStorage ────────────────────────
 
-function loadSignerFromStorage(uid) {
+async function loadSignerFromStorage(uid) {
     if (!uid) return false;
     
     try {
@@ -73,7 +68,7 @@ function loadSignerFromStorage(uid) {
             return false;
         }
         
-        const key = decryptSignerKey(encrypted, uid);
+        const key = await decryptSignerKey(encrypted, uid);
         if (!key) return false;
         
         if (!ethProvider) initEthProvider();
@@ -140,14 +135,20 @@ function saveSignerKey() {
 
         // Сохранить в localStorage (зашифровано)
         if (currentUser && currentUser.uid) {
-            saveSignerToStorage(key, currentUser.uid);
+            saveSignerToStorage(key, currentUser.uid).catch(e => console.warn('saveSignerToStorage failed:', e));
         }
 
         updateSignerUI();
         addToLog(`${t('signer_connected_msg')} ${signerAddress.slice(0,8)}...${signerAddress.slice(-6)}`, 'success');
 
-        // Сразу пробуем загрузить баланс
+        // Регистрируем signer на RISEx (не блокирует UI при ошибке)
+        if (typeof registerSigner === 'function' && currentUser?.uid) {
+            registerSigner(currentUser.uid).catch(() => {});
+        }
+
+        // Сразу пробуем загрузить баланс и позицию
         fetchBalance();
+        if (typeof loadRealPosition === 'function') loadRealPosition();
 
     } catch (e) {
         addToLog(t('signer_invalid'), 'error');
@@ -155,13 +156,13 @@ function saveSignerKey() {
     }
 }
 
-function loadSignerKey() {
+async function loadSignerKey() {
     if (!currentUser || !currentUser.uid) {
         return false;
     }
 
     // Попробовать загрузить из localStorage
-    if (loadSignerFromStorage(currentUser.uid)) {
+    if (await loadSignerFromStorage(currentUser.uid)) {
         return true;
     }
 

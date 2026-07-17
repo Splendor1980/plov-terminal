@@ -14,7 +14,6 @@ const SUBSCRIPTION_PAYMENT_ADDRESS = '0x3A7B2c686b2ED20798011D17141DD74123521a4b
 const USDC_CONTRACT_ADDRESS = '0xe436820ba0c69702c1d3e601d421c0ef38262739';
 const SUBSCRIPTION_COST = '1'; // 1 USDC
 const TRIAL_DAYS = 7;
-const BACKEND_URL = '/api/check-payment';
 
 // Статусы подписки
 let userSubscription = {

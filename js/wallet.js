@@ -302,7 +302,4 @@ window.handleWithdraw     = handleWithdraw;
 window.copyAddress        = copyAddress;
 window.confirmPin         = confirmPin;
 window.cancelPin          = cancelPin;
-// Export для signer.js
-window.signer             = signer;
-window.signerAddress      = signerAddress;
 console.log('%cWallet loaded', 'color:#00ff9d');
