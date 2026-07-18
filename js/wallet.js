@@ -225,7 +225,9 @@ async function fetchBalance() {
         try {
             const balance = await getRealBalance();
             userBalance = balance;
+            userWallet.risexBalance = balance; // это поле реально читает updateBalanceUI()
             console.log('Fetched real balance from RISEx:', balance);
+            if (currentUser) saveWalletLocal(currentUser.uid);
         } catch (error) {
             console.warn('Failed to fetch real balance:', error);
         }
