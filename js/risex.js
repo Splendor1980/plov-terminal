@@ -615,6 +615,12 @@ async function signVerifyWitness({ account, target, hash, deadline }) {
         })
     );
 
+    const sigByteLen = (signature.length - 2) / 2;
+    console.log('signature:', signature, '| length (chars):', signature.length, '| bytes:', sigByteLen);
+    if (sigByteLen !== 65) {
+        throw new Error(`Signature is ${sigByteLen} bytes, expected 65 — bug before sending to API`);
+    }
+
     return { nonceAnchor, nonceBitmap, signature };
 }
 
