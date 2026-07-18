@@ -634,8 +634,12 @@ async function signAndPlaceOrder({ marketId, side, humanSize, humanPrice, orderT
     const deadline = Math.floor(Date.now() / 1000) + 300;
     const expiry   = timeInForce === TIF.GTT ? deadline : 0;
 
-    const sizeWad  = ethers.parseUnits(String(humanSize),  18);
-    const priceWad = ethers.parseUnits(String(humanPrice), 18);
+    // toFixed(18), не String() — у мелких чисел (например, при $1 ордере на
+    // BTC ~64000 → размер ~0.0000156) String() может дать >18 знаков после
+    // запятой из-за особенностей представления float, а parseUnits(_, 18)
+    // принимает максимум 18.
+    const sizeWad  = ethers.parseUnits(Number(humanSize).toFixed(18),  18);
+    const priceWad = ethers.parseUnits(Number(humanPrice).toFixed(18), 18);
 
     const encoded  = encodeOrderData({
         marketId, sizeWad, priceWad, side, postOnly, reduceOnly, stpMode, orderType, timeInForce, expiry

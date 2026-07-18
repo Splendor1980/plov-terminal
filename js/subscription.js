@@ -290,33 +290,38 @@ async function confirmPayment() {
 // ── Отправка USDC ──────────────────────────────────────────
 
 async function sendUSDC(tokenAddress, toAddress, amount) {
-    if (!signer) {
-        throw new Error('Signer not ready');
+    if (!window.ethereum) {
+        throw new Error('Кошелёк (MetaMask/Rabby) не найден в браузере');
     }
-    
+
+    // Оплата подписки — это перевод с ОСНОВНОГО кошелька пользователя
+    // (через расширение в браузере), а НЕ с Signer Key — у делегат-ключа
+    // по дизайну нет ни средств, ни возможности их выводить.
+    const browserProvider = new ethers.BrowserProvider(window.ethereum);
+    await browserProvider.send('eth_requestAccounts', []);
+    const payerSigner = await browserProvider.getSigner();
+
     const ERC20_ABI = [
         'function transfer(address to, uint256 amount) returns (bool)',
         'function decimals() view returns (uint8)',
         'function balanceOf(address) view returns (uint256)'
     ];
-    
+
     try {
-        const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
-        
-        // Получить decimals
+        const token = new ethers.Contract(tokenAddress, ERC20_ABI, payerSigner);
+
         const decimals = await token.decimals();
         const amountWithDecimals = ethers.parseUnits(amount, decimals);
-        
-        // Проверить баланс
-        const balance = await token.balanceOf(await signer.getAddress());
+
+        const payerAddress = await payerSigner.getAddress();
+        const balance = await token.balanceOf(payerAddress);
         if (balance < amountWithDecimals) {
             throw new Error(`Insufficient balance. Have: ${ethers.formatUnits(balance, decimals)}, need: ${amount}`);
         }
-        
-        // Отправить
+
         const tx = await token.transfer(toAddress, amountWithDecimals);
         console.log('Transaction sent:', tx.hash);
-        
+
         return tx;
     } catch (error) {
         console.error('Send USDC error:', error);
