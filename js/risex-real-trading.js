@@ -83,7 +83,7 @@ async function placeRealOrder(side, amountUsdc, leverage) {
             humanSize:  positionSize,
             humanPrice: lastPrice,
             orderType:  ORDER_TYPE.MARKET,
-            timeInForce: TIF.GTC,
+            timeInForce: TIF.IOC, // маркет-ордера требуют FOK/IOC, GTC не принимается
         });
 
         addToLog(`✅ ${side.toUpperCase()} opened at $${lastPrice.toFixed(2)}`, 'success');
@@ -139,7 +139,7 @@ async function closeRealPosition() {
             humanSize:   position.size,
             humanPrice:  lastPrice,
             orderType:   ORDER_TYPE.MARKET,
-            timeInForce: TIF.GTC,
+            timeInForce: TIF.IOC, // маркет-ордера требуют FOK/IOC, GTC не принимается
             reduceOnly:  true,
         });
 
