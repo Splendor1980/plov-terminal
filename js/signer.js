@@ -5,11 +5,15 @@
 // NOTE: signer, signerAddress, ethProvider are already declared in wallet.js
 // This file ONLY declares signerKey and uses global variables from wallet.js
 
-let signerKey     = null;   // private key (string)
+let signerKey        = null;   // private key (string)
+let riseAccountAddress = null; // адрес ГЛАВНОГО (фондированного) аккаунта RISEx —
+                                // может отличаться от signerAddress, если signer —
+                                // отдельный делегат-ключ (см. RISEX_CORE_SPEC.md §1)
 // signer, signerAddress, ethProvider используются из wallet.js (глобальные переменные)
 
 const RISE_API_URL = 'https://www.rise.trade/en/API';
-const SIGNER_STORAGE_KEY = 'plov_signer_key_encrypted';
+const SIGNER_STORAGE_KEY  = 'plov_signer_key_encrypted';
+const ACCOUNT_STORAGE_KEY = 'plov_rise_account_address'; // публичный адрес, шифровать не нужно
 
 // ── Шифрование/дешифрование приватного ключа ───────────────
 // Реальное AES-GCM+PBKDF2 (функции encryptKey/decryptKey из wallet.js),
@@ -47,7 +51,7 @@ async function saveSignerToStorage(key, uid) {
         if (!encrypted) return false;
         
         localStorage.setItem(SIGNER_STORAGE_KEY + '_' + uid, encrypted);
-        localStorage.setItem('plov_signer_account_' + uid, signerAddress || '');
+        localStorage.setItem(ACCOUNT_STORAGE_KEY + '_' + uid, riseAccountAddress || signerAddress || '');
         console.log('✅ Signer saved to localStorage');
         return true;
     } catch (e) {
@@ -81,9 +85,12 @@ async function loadSignerFromStorage(uid) {
         signerKey     = key;
         signer        = wallet;
         signerAddress = wallet.address;
-        
+
+        const savedAccount = localStorage.getItem(ACCOUNT_STORAGE_KEY + '_' + uid);
+        riseAccountAddress = (savedAccount && savedAccount.startsWith('0x')) ? savedAccount : signerAddress;
+
         updateSignerUI();
-        console.log('✅ Signer loaded from localStorage:', signerAddress);
+        console.log('✅ Signer loaded from localStorage:', signerAddress, '| account:', riseAccountAddress);
         return true;
     } catch (e) {
         console.warn('Load signer error:', e);
@@ -98,7 +105,7 @@ function clearSignerFromStorage(uid) {
     
     try {
         localStorage.removeItem(SIGNER_STORAGE_KEY + '_' + uid);
-        localStorage.removeItem('plov_signer_account_' + uid);
+        localStorage.removeItem(ACCOUNT_STORAGE_KEY + '_' + uid);
         console.log('✅ Signer cleared from localStorage');
     } catch (e) {
         console.warn('Clear signer error:', e);
@@ -133,7 +140,8 @@ function toggleSignerKeyVisibility() {
 }
 
 function saveSignerKey() {
-    const input = document.getElementById('signer-key-input');
+    const input        = document.getElementById('signer-key-input');
+    const accountInput = document.getElementById('signer-account-input');
     let key = input ? input.value.trim() : '';
 
     if (!key) {
@@ -150,6 +158,10 @@ function saveSignerKey() {
         signer        = wallet;
         signerAddress = wallet.address;
 
+        let acc = accountInput ? accountInput.value.trim() : '';
+        if (acc && !acc.startsWith('0x')) acc = '0x' + acc;
+        riseAccountAddress = (acc && ethers.isAddress(acc)) ? acc : signerAddress;
+
         // Сохранить в localStorage (зашифровано)
         if (currentUser && currentUser.uid) {
             saveSignerToStorage(key, currentUser.uid).catch(e => console.warn('saveSignerToStorage failed:', e));
@@ -157,6 +169,9 @@ function saveSignerKey() {
 
         updateSignerUI();
         addToLog(`${t('signer_connected_msg')} ${signerAddress.slice(0,8)}...${signerAddress.slice(-6)}`, 'success');
+        if (riseAccountAddress !== signerAddress) {
+            addToLog(`ℹ️ Account: ${riseAccountAddress.slice(0,8)}...${riseAccountAddress.slice(-6)}`, 'meta');
+        }
 
         // Регистрируем signer на RISEx (не блокирует UI при ошибке)
         if (typeof registerSigner === 'function' && currentUser?.uid) {
@@ -192,6 +207,7 @@ function disconnectSigner() {
     signerKey     = null;
     signer        = null;
     signerAddress = null;
+    riseAccountAddress = null;
 
     // Очистить из localStorage
     if (currentUser && currentUser.uid) {
@@ -219,15 +235,25 @@ function updateSignerUI() {
     const notConnected = document.getElementById('signer-not-connected');
     const connected     = document.getElementById('signer-connected');
     const addrShort     = document.getElementById('signer-address-short');
+    const accRow        = document.getElementById('signer-account-row');
+    const accShort       = document.getElementById('signer-account-short');
 
     if (signerAddress) {
         if (notConnected) notConnected.style.display = 'none';
         if (connected)     connected.style.display    = 'block';
         if (addrShort)     addrShort.textContent       =
             signerAddress.slice(0,8) + '…' + signerAddress.slice(-6);
+
+        if (riseAccountAddress && riseAccountAddress !== signerAddress) {
+            if (accRow)   accRow.style.display = 'flex';
+            if (accShort) accShort.textContent = riseAccountAddress.slice(0,8) + '…' + riseAccountAddress.slice(-6);
+        } else if (accRow) {
+            accRow.style.display = 'none';
+        }
     } else {
         if (notConnected) notConnected.style.display = 'block';
         if (connected)     connected.style.display    = 'none';
+        if (accRow)        accRow.style.display       = 'none';
     }
 }
 

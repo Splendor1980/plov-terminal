@@ -66,7 +66,17 @@ async function registerSigner(uid) {
     const ok = await unlockSigner(uid);
     if (!ok) return false;
 
-    const account = signerAddress; // self-authorized: account == signer (см. RISEX_CORE_SPEC.md §1)
+    const account = riseAccountAddress || signerAddress; // см. RISEX_CORE_SPEC.md §1
+
+    // RegisterSigner подписывается ключом АККАУНТА (не signer'а). У нас есть
+    // только ключ signer'а — так что если account ≠ signer, мы физически не
+    // можем это подписать (ключ от account — это Rabby/MetaMask, PLOV его
+    // никогда не получает). В delegate-режиме авторизация уже должна быть
+    // сделана на rise.trade → API → Authorize API Wallet — просто доверяем ей.
+    if (account !== signerAddress) {
+        addToLog('ℹ️ Delegate signer — доверяем авторизации на rise.trade', 'meta');
+        return true;
+    }
 
     try {
         addToLog(t('signer_reg'), 'meta');
@@ -92,7 +102,7 @@ async function registerSigner(uid) {
 
         const accountSig = fixSignatureV(
             await signer.signTypedData(domain, REGISTER_SIGNER_TYPES, {
-                signer: account, message, expiration, nonce,
+                signer: signerAddress, message, expiration, nonce,
             })
         );
 
@@ -107,7 +117,7 @@ async function registerSigner(uid) {
         );
 
         const body = {
-            account, signer: account, message, nonce, expiration,
+            account, signer: signerAddress, message, nonce, expiration,
             account_signature: accountSig,
             signer_signature:  signerSig,
         };
@@ -619,7 +629,7 @@ async function signAndPlaceOrder({ marketId, side, humanSize, humanPrice, orderT
     if (!signer || !signerAddress) throw new Error('Signer not connected');
     if (!RISEX_CONTRACTS.router)   throw new Error('Router address not loaded (system/config)');
 
-    const account  = signerAddress;
+    const account  = riseAccountAddress || signerAddress;
     const target   = RISEX_CONTRACTS.router;
     const deadline = Math.floor(Date.now() / 1000) + 300;
     const expiry   = timeInForce === TIF.GTT ? deadline : 0;
@@ -643,7 +653,7 @@ async function signAndPlaceOrder({ marketId, side, humanSize, humanPrice, orderT
         post_only: postOnly, reduce_only: reduceOnly, stp_mode: stpMode,
         builder_id: 0, client_order_id: '0', ttl_units: 0,
         permit: {
-            account, signer: account,
+            account, signer: signerAddress,
             nonce_anchor: String(nonceAnchor), nonce_bitmap_index: nonceBitmap,
             deadline, signature,
         }
@@ -668,7 +678,7 @@ async function signAndCancelOrder(marketId, orderId) {
     if (!signer || !signerAddress) throw new Error('Signer not connected');
     if (!RISEX_CONTRACTS.router)   throw new Error('Router address not loaded (system/config)');
 
-    const account  = signerAddress;
+    const account  = riseAccountAddress || signerAddress;
     const target   = RISEX_CONTRACTS.router;
     const deadline = Math.floor(Date.now() / 1000) + 300;
 
@@ -685,7 +695,7 @@ async function signAndCancelOrder(marketId, orderId) {
         market_id: Number(marketId),
         order_id:  String(orderId),
         permit: {
-            account, signer: account,
+            account, signer: signerAddress,
             nonce_anchor: String(nonceAnchor), nonce_bitmap_index: nonceBitmap,
             deadline, signature,
         }

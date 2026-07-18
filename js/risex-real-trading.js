@@ -11,14 +11,15 @@
 // ── Получение реального баланса ─────────────────────────────
 
 async function getRealBalance() {
-    if (!signerAddress) {
+    const account = riseAccountAddress || signerAddress;
+    if (!account) {
         console.warn('getRealBalance: no signer connected yet');
         return 0;
     }
 
     try {
         const usdc = (window.RISEX_CONTRACTS && RISEX_CONTRACTS.usdc) || FALLBACK_USDC_ADDRESS;
-        const url  = `${RISEX_API.rest}/v1/account/balance?account=${signerAddress}&token=${usdc}`;
+        const url  = `${RISEX_API.rest}/v1/account/balance?account=${account}&token=${usdc}`;
 
         console.log('📊 Fetching balance:', url);
 
@@ -166,11 +167,12 @@ async function closeRealPosition() {
 // ── Загрузка реальной позиции ───────────────────────────────
 
 async function loadRealPosition() {
-    if (!isLoggedIn || !signerAddress) return;
+    const account = riseAccountAddress || signerAddress;
+    if (!isLoggedIn || !account) return;
 
     try {
         const response = await fetch(
-            `${RISEX_API.rest}/v1/account/position?market_id=${currentMarket}&account=${signerAddress}`
+            `${RISEX_API.rest}/v1/account/position?market_id=${currentMarket}&account=${account}`
         );
 
         if (!response.ok) return;
@@ -207,11 +209,12 @@ async function loadRealPosition() {
 // ── История ордеров ─────────────────────────────────────────
 
 async function fetchOrderHistory(limit = 10) {
-    if (!signerAddress) return [];
+    const account = riseAccountAddress || signerAddress;
+    if (!account) return [];
 
     try {
         const response = await fetch(
-            `${RISEX_API.rest}/v1/account/orders?account=${signerAddress}&limit=${limit}`
+            `${RISEX_API.rest}/v1/account/orders?account=${account}&limit=${limit}`
         );
 
         if (!response.ok) return [];

@@ -170,16 +170,17 @@
             <div class="section-title" id="signer-title">🔑 RISEx API Key</div>
             <div id="signer-not-connected">
                 <p class="signer-hint" id="signer-hint-text">
-                    Connect your RISEx Signer Key to start real trading.
+                    Не используйте ключ основного кошелька (MetaMask/Rabby)! Создайте отдельный API-кошелёк: rise.trade → API → оставьте поле Address пустым → Generate → Authorize.
                 </p>
                 <button class="btn-rise-api" onclick="openRiseApiPage()">
                     <span id="btn-rise-api-text">Get API Key on rise.trade</span> ↗
                 </button>
                 <div class="signer-input-row">
-                    <input type="password" id="signer-key-input" placeholder="0x... (private key)" autocomplete="new-password" name="plov-signer-key-nofill">
-                    <button class="btn-sm btn-green" onclick="saveSignerKey()" id="btn-save-signer">Save</button>
+                    <input type="password" id="signer-key-input" placeholder="0x... (приватный ключ API-кошелька)" autocomplete="new-password" name="plov-signer-key-nofill">
                     <button class="btn-sm" type="button" onclick="toggleSignerKeyVisibility()" id="btn-toggle-signer-key" title="Show/hide">👁</button>
                 </div>
+                <input type="text" id="signer-account-input" placeholder="Account address (если отличается от API-кошелька, необязательно)" style="margin-top:6px;width:100%;">
+                <button class="btn-sm btn-green" onclick="saveSignerKey()" id="btn-save-signer" style="margin-top:6px;width:100%;">Save</button>
                 <p class="signer-security-note" id="signer-security-note">
                     🔒 Stored locally in your browser only. Never sent to our servers.
                 </p>
@@ -189,6 +190,10 @@
                     <span class="signer-status-dot"></span>
                     <span id="signer-address-short">---</span>
                     <button class="btn-copy" onclick="copySignerAddress()">⧉</button>
+                </div>
+                <div class="signer-connected-row" id="signer-account-row" style="display:none">
+                    <span style="opacity:.6;font-size:11px;">account:</span>
+                    <span id="signer-account-short">---</span>
                 </div>
                 <button class="btn-sm btn-red" onclick="disconnectSigner()" id="btn-disconnect-signer">Disconnect</button>
             </div>
