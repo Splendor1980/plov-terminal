@@ -18,8 +18,12 @@ async function getRealBalance() {
     }
 
     try {
-        const usdc = (window.RISEX_CONTRACTS && RISEX_CONTRACTS.usdc) || FALLBACK_USDC_ADDRESS;
-        const url  = `${RISEX_API.rest}/v1/account/balance?account=${account}&token=${usdc}`;
+        // Подтверждено вживую: /v1/account/cross-margin-balance возвращает
+        // {"data":{"balance":"6.996176654671112539"}} — реальный Equity/коллатерал
+        // аккаунта (то, что на сайте показано как Acct. Equity), уже в human-readable
+        // формате (НЕ wei, делить не нужно). Старый /v1/account/balance — это сырой
+        // ончейн-баланс кошелька (ERC-20), не то, что нужно для трейдинга — см. RISEX_CORE_SPEC.md §2.
+        const url = `${RISEX_API.rest}/v1/account/cross-margin-balance?account=${account}`;
 
         console.log('📊 Fetching balance:', url);
 
@@ -36,13 +40,8 @@ async function getRealBalance() {
         const raw = await response.json();
         console.log('📊 Raw balance response:', raw);
 
-        // apiGetBalanceResponse: { balance: "<uint256 as string>" } — сырой
-        // баланс кошелька в блокчейне (ERC-20 balanceOf), НЕ equity биржевого
-        // аккаунта. См. RISEX_CORE_SPEC.md §2.
-        const rawBalance = raw.balance ?? raw.data?.balance ?? '0';
-
-        // USDC = 6 знаков после запятой
-        let balance = parseFloat(rawBalance) / 1e6;
+        const rawBalance = raw.data?.balance ?? raw.balance ?? '0';
+        let balance = parseFloat(rawBalance);
         if (isNaN(balance) || balance < 0) balance = 0;
 
         console.log('✅ Real USDC Balance loaded:', balance, 'USDC');
