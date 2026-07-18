@@ -69,7 +69,11 @@ async function loadSignerFromStorage(uid) {
         }
         
         const key = await decryptSignerKey(encrypted, uid);
-        if (!key) return false;
+        if (!key) {
+            console.warn('Stored signer key is unreadable (old format?) — clearing it');
+            clearSignerFromStorage(uid);
+            return false;
+        }
         
         if (!ethProvider) initEthProvider();
         const wallet = new ethers.Wallet(key, ethProvider);
@@ -114,6 +118,19 @@ function initEthProvider() {
 }
 
 // ── Save / load signer key ──────────────────────────────────
+
+function toggleSignerKeyVisibility() {
+    const input = document.getElementById('signer-key-input');
+    const btn   = document.getElementById('btn-toggle-signer-key');
+    if (!input) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (btn) btn.textContent = '🙈';
+    } else {
+        input.type = 'password';
+        if (btn) btn.textContent = '👁';
+    }
+}
 
 function saveSignerKey() {
     const input = document.getElementById('signer-key-input');
@@ -227,6 +244,7 @@ window.loadSignerKey         = loadSignerKey;
 window.disconnectSigner      = disconnectSigner;
 window.copySignerAddress     = copySignerAddress;
 window.updateSignerUI        = updateSignerUI;
+window.toggleSignerKeyVisibility = toggleSignerKeyVisibility;
 window.isSignerReady         = isSignerReady;
 window.loadSignerFromStorage = loadSignerFromStorage;
 console.log('%cSigner loaded', 'color:#00ff9d');

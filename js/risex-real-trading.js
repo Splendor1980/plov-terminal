@@ -1,12 +1,14 @@
 // ============================================================
-// js/risex-real-trading.js - REAL TRADING MODULE
+// js/risex-real-trading.js — REAL TRADING MODULE
 // ============================================================
 // Rise Mainnet (chainId 4153)
-// Баланс: через backend proxy с динамическим адресом (Firestore)
-// Торговля: через risex-client SDK (CDN)
+// Баланс: /v1/account/balance (сырой ончейн-баланс кошелька signerAddress)
+// Торговля: собственная EIP-712 подпись (см. RISEX_CORE_SPEC.md), без
+// внешнего SDK — risex-client не имеет браузерной UMD-сборки (проверено
+// в npm registry: только dist/cjs и dist/esm, CDN-тег на UMD всегда 404).
 // ============================================================
 
-// ── Получение реального баланса (с использованием Firestore адреса) ─
+// ── Получение реального баланса ─────────────────────────────
 
 async function getRealBalance() {
     if (!signerAddress) {
@@ -30,16 +32,17 @@ async function getRealBalance() {
             return 0;
         }
 
-        const raw  = await response.json();
-        const data = raw.data || raw;
+        const raw = await response.json();
+        console.log('📊 Raw balance response:', raw);
 
-        let balance = parseFloat(
-            data.balance ?? data.free ?? data.available ?? data.equity ?? 0
-        );
+        // apiGetBalanceResponse: { balance: "<uint256 as string>" } — сырой
+        // баланс кошелька в блокчейне (ERC-20 balanceOf), НЕ equity биржевого
+        // аккаунта. См. RISEX_CORE_SPEC.md §2.
+        const rawBalance = raw.balance ?? raw.data?.balance ?? '0';
 
-        if (isNaN(balance)) balance = 0;
-        if (balance > 1e15) balance = balance / 1e18; // значение в wei
-        if (balance < 0) balance = 0;
+        // USDC = 6 знаков после запятой
+        let balance = parseFloat(rawBalance) / 1e6;
+        if (isNaN(balance) || balance < 0) balance = 0;
 
         console.log('✅ Real USDC Balance loaded:', balance, 'USDC');
         return balance;
@@ -50,54 +53,18 @@ async function getRealBalance() {
     }
 }
 
-// ── Инициализация risex-client SDK ──────────────────────────
-
-let risexClient = null;
-
-async function initRisexClient() {
-    if (!signerAddress || !signerKey) {
-        console.warn('initRisexClient: signer not ready');
-        return null;
-    }
-
-    try {
-        // SDK должен быть подключен через CDN в index.html
-        if (typeof window.risexClient === 'undefined') {
-            console.warn('risex-client SDK not loaded (CDN)');
-            return null;
-        }
-
-        const { ExchangeClient } = window.risexClient;
-
-        risexClient = new ExchangeClient({
-            account: signerAddress,
-            signerKey: signerKey   // приватный ключ
-        });
-
-        await risexClient.init();
-        console.log('✅ risex-client SDK initialized');
-        return risexClient;
-
-    } catch (error) {
-        console.error('❌ initRisexClient failed:', error);
-        return null;
-    }
-}
-
-// ── Размещение реального ордера через SDK ───────────────────
+// ── Размещение реального ордера (собственная подпись) ───────
 
 async function placeRealOrder(side, amountUsdc, leverage) {
     if (!signer || !signerAddress) {
         addToLog('❌ Signer not connected', 'error');
         return false;
     }
-
     if (!lastPrice || lastPrice <= 0) {
         addToLog('❌ No price data available', 'error');
         return false;
     }
 
-    // Проверка баланса
     const realBalance = await getRealBalance();
     if (realBalance < amountUsdc) {
         addToLog(`❌ Insufficient balance. Have: ${realBalance.toFixed(2)}, need: ${amountUsdc}`, 'error');
@@ -107,52 +74,40 @@ async function placeRealOrder(side, amountUsdc, leverage) {
     addToLog('⏳ Placing real order on RISEx...', 'pending');
 
     try {
-        // Инициализировать SDK если еще не инициализирован
-        if (!risexClient) {
-            risexClient = await initRisexClient();
+        const positionSize = (amountUsdc * leverage) / lastPrice;
+        const sideCode = side.toLowerCase() === 'long' ? 0 : 1; // 0=Buy/Long, 1=Sell/Short
+
+        const result = await signAndPlaceOrder({
+            marketId:   currentMarket,
+            side:       sideCode,
+            humanSize:  positionSize,
+            humanPrice: lastPrice,
+            orderType:  ORDER_TYPE.MARKET,
+            timeInForce: TIF.GTC,
+        });
+
+        addToLog(`✅ ${side.toUpperCase()} opened at $${lastPrice.toFixed(2)}`, 'success');
+        addToLog(`📊 Size: ${positionSize.toFixed(6)} × ${leverage}x`, 'success');
+        if (result?.order_id) addToLog(`📋 Order ID: ${result.order_id}`, 'meta');
+
+        position = {
+            side: side.toLowerCase(),
+            size: positionSize,
+            entryPrice: lastPrice,
+            leverage: leverage,
+            margin: amountUsdc,
+            orderId: result?.order_id || null,
+            timestamp: Date.now()
+        };
+
+        updatePositionUI(position);
+        saveStats(side, amountUsdc * leverage, true);
+
+        if (typeof addMyTrade === 'function') {
+            addMyTrade(side, lastPrice, positionSize, leverage, result?.order_id);
         }
 
-        if (risexClient) {
-            // ── Через SDK (правильно) ──────────────────────
-            const positionSize = (amountUsdc * leverage) / lastPrice;
-
-            let result;
-            if (side.toLowerCase() === 'long') {
-                result = await risexClient.marketBuy(currentMarket, positionSize);
-            } else {
-                result = await risexClient.marketSell(currentMarket, positionSize);
-            }
-
-            addToLog(`✅ ${side.toUpperCase()} opened at $${lastPrice.toFixed(2)}`, 'success');
-            addToLog(`📊 Size: ${positionSize.toFixed(6)} × ${leverage}x`, 'success');
-            if (result && result.order_id) {
-                addToLog(`📋 Order ID: ${result.order_id}`, 'meta');
-            }
-
-            position = {
-                side: side.toLowerCase(),
-                size: positionSize,
-                entryPrice: lastPrice,
-                leverage: leverage,
-                margin: amountUsdc,
-                orderId: result?.order_id || null,
-                timestamp: Date.now()
-            };
-
-            updatePositionUI(position);
-            saveStats(side, amountUsdc * leverage, true);
-
-            if (typeof addMyTrade === 'function') {
-                addMyTrade(side, lastPrice, positionSize, leverage, result?.order_id);
-            }
-
-            return true;
-
-        } else {
-            // ── Fallback: ручной ордер ──────────────────
-            addToLog('⚠️ SDK not available, trying manual order...', 'warning');
-            return await placeManualOrder(side, amountUsdc, leverage);
-        }
+        return true;
 
     } catch (error) {
         console.error('Place order error:', error);
@@ -161,82 +116,45 @@ async function placeRealOrder(side, amountUsdc, leverage) {
     }
 }
 
-// ── Ручное размещение ордера (fallback) ─────────────────────
-
-async function placeManualOrder(side, amountUsdc, leverage) {
-    try {
-        const positionSize = (amountUsdc * leverage) / lastPrice;
-
-        const response = await fetch(`${RISEX_API.rest}/v1/orders/place`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                market_id: currentMarket,
-                account: signerAddress,
-                side: side.toLowerCase() === 'long' ? 0 : 1,
-                quantity: positionSize.toString(),
-                price: lastPrice.toString(),
-                leverage: leverage.toString(),
-                nonce: Date.now(),
-                expiry: Math.floor(Date.now() / 1000) + 3600
-            })
-        });
-
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.message || `API error: ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        if (result.order_id) {
-            addToLog(`✅ ${side.toUpperCase()} opened at $${lastPrice.toFixed(2)}`, 'success');
-            addToLog(`📋 Order ID: ${result.order_id}`, 'meta');
-            return true;
-        }
-
-        throw new Error('No order ID in response');
-
-    } catch (error) {
-        console.error('Manual order error:', error);
-        addToLog(`❌ Manual order failed: ${error.message}`, 'error');
-        return false;
-    }
-}
-
-// ── Закрытие позиции через SDK ──────────────────────────────
+// ── Закрытие позиции: reduce-only market-ордер в обратную сторону ─
 
 async function closeRealPosition() {
     if (!position || !position.size || position.size <= 0) {
         addToLog('❌ No open position', 'error');
         return false;
     }
+    if (!lastPrice || lastPrice <= 0) {
+        addToLog('❌ No price data available', 'error');
+        return false;
+    }
 
     addToLog('⏳ Closing position on RISEx...', 'pending');
 
     try {
-        if (!risexClient) {
-            risexClient = await initRisexClient();
-        }
+        const closeSideCode = position.side === 'long' ? 1 : 0; // закрываем встречным ордером
 
-        if (risexClient) {
-            // Через SDK - самый простой способ
-            await risexClient.closePosition(currentMarket);
+        const result = await signAndPlaceOrder({
+            marketId:    currentMarket,
+            side:        closeSideCode,
+            humanSize:   position.size,
+            humanPrice:  lastPrice,
+            orderType:   ORDER_TYPE.MARKET,
+            timeInForce: TIF.GTC,
+            reduceOnly:  true,
+        });
 
-            addToLog(`✅ Position closed at $${lastPrice.toFixed(2)}`, 'success');
+        const pnl = position.side === 'long'
+            ? (lastPrice - position.entryPrice) * position.size * position.leverage
+            : (position.entryPrice - lastPrice) * position.size * position.leverage;
 
-            const pnl = position.unrealizedPnL || 0;
-            position = null;
-            updatePositionUI(null);
+        addToLog(`✅ Position closed at $${lastPrice.toFixed(2)}`, 'success');
+        if (pnl > 0) addToLog(`💰 Profit: $${pnl.toFixed(2)}`, 'success');
+        else if (pnl < 0) addToLog(`📉 Loss: $${pnl.toFixed(2)}`, 'error');
+        if (result?.order_id) addToLog(`📋 Order ID: ${result.order_id}`, 'meta');
 
-            if (pnl > 0) addToLog(`💰 Profit: $${pnl.toFixed(2)}`, 'success');
-            else if (pnl < 0) addToLog(`📉 Loss: $${pnl.toFixed(2)}`, 'error');
-
-            return true;
-        } else {
-            addToLog('❌ SDK not available for closing position', 'error');
-            return false;
-        }
+        position = null;
+        updatePositionUI(null);
+        return true;
 
     } catch (error) {
         console.error('Close position error:', error);
@@ -309,11 +227,10 @@ async function fetchOrderHistory(limit = 10) {
 
 // ── Экспорты ───────────────────────────────────────────────
 
-window.placeRealOrder     = placeRealOrder;
-window.getRealBalance     = getRealBalance;
-window.loadRealPosition   = loadRealPosition;
-window.closeRealPosition  = closeRealPosition;
-window.fetchOrderHistory  = fetchOrderHistory;
-window.initRisexClient    = initRisexClient;
+window.placeRealOrder    = placeRealOrder;
+window.getRealBalance    = getRealBalance;
+window.loadRealPosition  = loadRealPosition;
+window.closeRealPosition = closeRealPosition;
+window.fetchOrderHistory = fetchOrderHistory;
 
 console.log('%cReal Trading Module loaded', 'color:#00ff9d;font-weight:bold');

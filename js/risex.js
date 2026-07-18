@@ -66,131 +66,62 @@ async function registerSigner(uid) {
     const ok = await unlockSigner(uid);
     if (!ok) return false;
 
-    const account = signerAddress;
+    const account = signerAddress; // self-authorized: account == signer (см. RISEX_CORE_SPEC.md §1)
 
     try {
         addToLog(t('signer_reg'), 'meta');
 
-        // fixSignatureV — исправляет v=0/1 → 27/28 (как в SDK)
-        function fixSignatureV(sig) {
-            const sigBytes = ethers.getBytes(sig);
-            const v = sigBytes[64];
-            if (v === 0 || v === 1) {
-                sigBytes[64] = v + 27;
-                return ethers.hexlify(sigBytes);
-            }
-            return sig;
-        }
+        const domain = await fetchEip712Domain();
 
-        // Шаг 1 — EIP-712 домен
-        let domain = { name: 'RISEx', version: '1', chainId: BigInt(RISE_CHAIN.chainId) };
-        try {
-            const domainRes = await fetch(`${RISEX_API.rest}/v1/auth/eip712-domain`);
-            if (domainRes.ok) {
-                const raw = await domainRes.json();
-                const d   = raw.data || raw;
-                // API возвращает snake_case: chain_id, verifying_contract
-                const chainId  = d.chain_id || d.chainId;
-                const contract = d.verifying_contract || d.verifyingContract;
-                domain = {
-                    name:    d.name,
-                    version: d.version,
-                    chainId: BigInt(chainId),
-                    verifyingContract: contract,
-                };
-                console.log('domain loaded:', domain);
-            }
-        } catch (e) {
-            console.warn('eip712-domain error:', e.message);
-        }
-        console.log('domain:', domain);
+        // RegisterSigner(address signer,string message,uint40 expiration,uint256 nonce)
+        // VerifySigner(address account,uint256 nonce)
+        // Подтверждено ДВАЖДЫ независимыми страницами доки (authservice_registersigner
+        // и integration.md) — см. RISEX_CORE_SPEC.md §4.
+        const nonce      = Date.now().toString();
+        const expiration = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60; // 7 дней
 
-        // Шаг 2 — nonceState
-        let nonceAnchor = 1;
-        let nonceBitmap = 0;
-        try {
-            const nonceRes = await fetch(`${RISEX_API.rest}/v1/nonce-state/${account}`);
-            if (nonceRes.ok) {
-                const raw = await nonceRes.json();
-                const nd  = raw.data || raw;
-                console.log('nonce-state:', nd);
-                nonceAnchor = Number(nd.nonce_anchor || 0) + 1;
-            }
-        } catch (e) {
-            console.warn('nonce-state error:', e.message);
-        }
-        console.log('nonceAnchor:', nonceAnchor);
-
-        // Шаг 3 — expiration (7 дней как в SDK)
-        const expiration = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
-
-        // Шаг 4 — account signature (REGISTER_SIGNER_TYPES)
         const REGISTER_SIGNER_TYPES = {
             RegisterSigner: [
-                { name: 'account',     type: 'address' },
-                { name: 'signer',      type: 'address' },
-                { name: 'message',     type: 'string'  },
-                { name: 'expiration',  type: 'uint32'  },
-                { name: 'nonceAnchor', type: 'uint48'  },
-                { name: 'nonceBitmap', type: 'uint8'   },
+                { name: 'signer',     type: 'address' },
+                { name: 'message',    type: 'string'  },
+                { name: 'expiration', type: 'uint40'  },
+                { name: 'nonce',      type: 'uint256' },
             ]
         };
+        const message = 'Register signer for RISEx trading';
 
         const accountSig = fixSignatureV(
             await signer.signTypedData(domain, REGISTER_SIGNER_TYPES, {
-                account:     account,
-                signer:      account,
-                message:     'Registering signer for RISEx',
-                expiration:  expiration,
-                nonceAnchor: nonceAnchor,
-                nonceBitmap: nonceBitmap,
+                signer: account, message, expiration, nonce,
             })
         );
-        console.log('accountSig:', accountSig);
 
-        // Шаг 5 — signer signature (VERIFY_SIGNER_TYPES — другой тип!)
         const VERIFY_SIGNER_TYPES = {
             VerifySigner: [
-                { name: 'account',     type: 'address' },
-                { name: 'nonceAnchor', type: 'uint48'  },
-                { name: 'nonceBitmap', type: 'uint8'   },
+                { name: 'account', type: 'address' },
+                { name: 'nonce',   type: 'uint256' },
             ]
         };
-
         const signerSig = fixSignatureV(
-            await signer.signTypedData(domain, VERIFY_SIGNER_TYPES, {
-                account:     account,
-                nonceAnchor: nonceAnchor,
-                nonceBitmap: nonceBitmap,
-            })
+            await signer.signTypedData(domain, VERIFY_SIGNER_TYPES, { account, nonce })
         );
-        console.log('signerSig:', signerSig);
 
-        // Шаг 6 — отправляем
         const body = {
-            account:            account,
-            signer:             account,
-            message:            'Registering signer for RISEx',
-            nonce_anchor:       String(nonceAnchor),
-            nonce_bitmap_index: nonceBitmap,
-            expiration:         String(expiration),
-            account_signature:  accountSig,
-            signer_signature:   signerSig,
-            label:              'plov-terminal',
+            account, signer: account, message, nonce, expiration,
+            account_signature: accountSig,
+            signer_signature:  signerSig,
         };
-        console.log('body:', JSON.stringify(body));
+        console.log('register-signer body:', JSON.stringify(body));
 
-        const regRes = await fetch(`${RISEX_API.rest}/v1/auth/register-signer`, {
+        const regRes  = await fetch(`${RISEX_API.rest}/v1/auth/register-signer`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify(body)
         });
-
         const result = await regRes.json().catch(() => ({}));
         console.log('register-signer response:', regRes.status, result);
 
         if (regRes.ok || regRes.status === 409) {
-            // signer already registered via rise.trade
             if (uid) saveWalletLocal(uid);
             addToLog(t('signer_ok'), 'success');
             return true;
@@ -204,6 +135,41 @@ async function registerSigner(uid) {
         console.error('registerSigner exception:', e);
         return false;
     }
+}
+
+// fixSignatureV — исправляет v=0/1 → 27/28
+function fixSignatureV(sig) {
+    const sigBytes = ethers.getBytes(sig);
+    const v = sigBytes[64];
+    if (v === 0 || v === 1) {
+        sigBytes[64] = v + 27;
+        return ethers.hexlify(sigBytes);
+    }
+    return sig;
+}
+
+// GET /v1/auth/eip712-domain — общий домен для всех подписей (order/cancel/register)
+let _eip712DomainCache = null;
+async function fetchEip712Domain() {
+    if (_eip712DomainCache) return _eip712DomainCache;
+    let domain = { name: 'RISEx', version: '1', chainId: BigInt(RISE_CHAIN.chainId) };
+    try {
+        const res = await fetch(`${RISEX_API.rest}/v1/auth/eip712-domain`);
+        if (res.ok) {
+            const raw = await res.json();
+            const d   = raw.data || raw;
+            domain = {
+                name:    d.name,
+                version: d.version,
+                chainId: BigInt(d.chain_id || d.chainId),
+                verifyingContract: d.verifying_contract || d.verifyingContract,
+            };
+        }
+    } catch (e) {
+        console.warn('eip712-domain error:', e.message);
+    }
+    _eip712DomainCache = domain;
+    return domain;
 }
 
 
@@ -549,6 +515,198 @@ function updateTickerUI(data) {
         if (frEl) frEl.textContent = `FR: ${fr}%`;
     }
 }
+
+// ============================================================
+// ── Подпись и размещение реальных ордеров ────────────────────
+// См. RISEX_CORE_SPEC.md §5-7. Полностью заменяет прежнюю
+// зависимость от несуществующего UMD-бандла risex-client и
+// неподписанный "manual fallback".
+// ============================================================
+
+function getMarketConfig(marketId) {
+    const markets = window._risexMarkets || [];
+    return markets.find(m => String(m.market_id) === String(marketId));
+}
+
+function toSizeSteps(humanSize, marketId) {
+    const m    = getMarketConfig(marketId);
+    const step = parseFloat(m?.config?.step_size || '0.001') || 0.001;
+    return Math.max(1, Math.round(humanSize / step));
+}
+
+function toPriceTicks(humanPrice, marketId) {
+    const m    = getMarketConfig(marketId);
+    const tick = parseFloat(m?.config?.step_price || '0.1') || 0.1;
+    return Math.max(1, Math.round(humanPrice / tick));
+}
+
+// 47-байтовая упаковка ордера под hash — см. RISEX_CORE_SPEC.md §5
+// (единственная деталь, НЕ подтверждённая дважды в доке — первое место
+// для проверки, если place-order будет падать с ошибкой подписи).
+function encodeOrderData({ marketId, sizeWad, priceWad, side, postOnly, reduceOnly, stpMode, orderType, timeInForce, expiry }) {
+    const data = new Uint8Array(47);
+    const view = new DataView(data.buffer);
+
+    view.setBigUint64(0, BigInt(marketId), false);
+
+    const sizeBytes  = ethers.getBytes(ethers.zeroPadValue(ethers.toBeHex(sizeWad), 16));
+    data.set(sizeBytes, 8);
+    const priceBytes = ethers.getBytes(ethers.zeroPadValue(ethers.toBeHex(priceWad), 16));
+    data.set(priceBytes, 24);
+
+    let flags = 0;
+    flags |= (side & 1);
+    flags |= (postOnly   ? 1 : 0) << 1;
+    flags |= (reduceOnly ? 1 : 0) << 2;
+    flags |= (stpMode & 3) << 3;
+    data[40] = flags;
+
+    data[41] = orderType;
+    data[42] = timeInForce;
+    view.setUint32(43, expiry >>> 0, false);
+
+    return data;
+}
+
+// Общий permit VerifyWitness — та же схема, что и update-leverage/
+// update-margin-mode/update-isolated-margin (подтверждена в доке дважды).
+async function signVerifyWitness({ account, target, hash, deadline }) {
+    const domain = await fetchEip712Domain();
+
+    let nonceAnchor = 1, nonceBitmap = 0;
+    try {
+        const res = await fetch(`${RISEX_API.rest}/v1/nonce-state/${account}`);
+        if (res.ok) {
+            const raw = await res.json();
+            const nd  = raw.data || raw;
+            nonceAnchor = Number(nd.nonce_anchor || 0) + 1;
+            // Если nonce_bitmap_index вернётся 208 (bitmap заполнен) — по доке
+            // нужно взять nonceAnchor+1 с bitmap=0. Тут не встречалось живьём,
+            // оставляю TODO вместо угадывания.
+        }
+    } catch (e) {
+        console.warn('nonce-state error:', e.message);
+    }
+
+    const VERIFY_WITNESS_TYPES = {
+        VerifyWitness: [
+            { name: 'account',     type: 'address' },
+            { name: 'target',      type: 'address' },
+            { name: 'hash',        type: 'bytes32' },
+            { name: 'nonceAnchor', type: 'uint48'  },
+            { name: 'nonceBitmap', type: 'uint8'   },
+            { name: 'deadline',    type: 'uint32'  },
+        ]
+    };
+
+    const signature = fixSignatureV(
+        await signer.signTypedData(domain, VERIFY_WITNESS_TYPES, {
+            account, target, hash, nonceAnchor, nonceBitmap, deadline,
+        })
+    );
+
+    return { nonceAnchor, nonceBitmap, signature };
+}
+
+// orderType: 0=Market, 1=Limit (из OpenAPI-схемы orderservice_placeorder —
+// ⚠️ integration.md прозой утверждает ОБРАТНОЕ (0=Limit,1=Market)! Идём по
+// авто-сгенерированной OpenAPI-схеме как более достоверной, но это второе
+// место для проверки при живом тесте, если ордер исполнится не тем типом.
+const ORDER_TYPE = { MARKET: 0, LIMIT: 1 };
+const TIF         = { GTC: 0, GTT: 1, FOK: 2, IOC: 3 };
+
+async function signAndPlaceOrder({ marketId, side, humanSize, humanPrice, orderType = ORDER_TYPE.MARKET, timeInForce = TIF.GTC, postOnly = false, reduceOnly = false, stpMode = 0 }) {
+    if (!signer || !signerAddress) throw new Error('Signer not connected');
+    if (!RISEX_CONTRACTS.router)   throw new Error('Router address not loaded (system/config)');
+
+    const account  = signerAddress;
+    const target   = RISEX_CONTRACTS.router;
+    const deadline = Math.floor(Date.now() / 1000) + 300;
+    const expiry   = timeInForce === TIF.GTT ? deadline : 0;
+
+    const sizeWad  = ethers.parseUnits(String(humanSize),  18);
+    const priceWad = ethers.parseUnits(String(humanPrice), 18);
+
+    const encoded  = encodeOrderData({
+        marketId, sizeWad, priceWad, side, postOnly, reduceOnly, stpMode, orderType, timeInForce, expiry
+    });
+    const orderHash = ethers.keccak256(encoded);
+
+    const { nonceAnchor, nonceBitmap, signature } =
+        await signVerifyWitness({ account, target, hash: orderHash, deadline });
+
+    const body = {
+        market_id:       Number(marketId),
+        size_steps:      toSizeSteps(humanSize, marketId),
+        price_ticks:     toPriceTicks(humanPrice, marketId),
+        side, order_type: orderType, time_in_force: timeInForce,
+        post_only: postOnly, reduce_only: reduceOnly, stp_mode: stpMode,
+        builder_id: 0, client_order_id: '0', ttl_units: 0,
+        permit: {
+            account, signer: account,
+            nonce_anchor: String(nonceAnchor), nonce_bitmap_index: nonceBitmap,
+            deadline, signature,
+        }
+    };
+    console.log('place-order body:', JSON.stringify(body));
+
+    const res = await fetch(`${RISEX_API.rest}/v1/orders/place`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+    });
+    const result = await res.json().catch(() => ({}));
+    console.log('place-order response:', res.status, result);
+
+    if (!res.ok) {
+        throw new Error(result.error?.message || result.message || `API error ${res.status}`);
+    }
+    return result;
+}
+
+async function signAndCancelOrder(marketId, orderId) {
+    if (!signer || !signerAddress) throw new Error('Signer not connected');
+    if (!RISEX_CONTRACTS.router)   throw new Error('Router address not loaded (system/config)');
+
+    const account  = signerAddress;
+    const target   = RISEX_CONTRACTS.router;
+    const deadline = Math.floor(Date.now() / 1000) + 300;
+
+    const cancelData = (BigInt(marketId) << 192n) | BigInt(orderId);
+    const packed      = ethers.zeroPadValue(ethers.toBeHex(cancelData), 32);
+    const cancelHash  = ethers.keccak256(
+        ethers.AbiCoder.defaultAbiCoder().encode(['bytes32'], [packed])
+    );
+
+    const { nonceAnchor, nonceBitmap, signature } =
+        await signVerifyWitness({ account, target, hash: cancelHash, deadline });
+
+    const body = {
+        market_id: Number(marketId),
+        order_id:  String(orderId),
+        permit: {
+            account, signer: account,
+            nonce_anchor: String(nonceAnchor), nonce_bitmap_index: nonceBitmap,
+            deadline, signature,
+        }
+    };
+
+    const res = await fetch(`${RISEX_API.rest}/v1/orders/cancel`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+    });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        throw new Error(result.error?.message || result.message || `API error ${res.status}`);
+    }
+    return result;
+}
+
+window.signAndPlaceOrder  = signAndPlaceOrder;
+window.signAndCancelOrder = signAndCancelOrder;
+window.ORDER_TYPE         = ORDER_TYPE;
+window.TIF                = TIF;
 
 // ── Размещение ордера ────────────────────────────────────────
 

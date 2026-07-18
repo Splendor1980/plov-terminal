@@ -176,8 +176,9 @@
                     <span id="btn-rise-api-text">Get API Key on rise.trade</span> ↗
                 </button>
                 <div class="signer-input-row">
-                    <input type="password" id="signer-key-input" placeholder="0x... (private key)" autocomplete="off">
+                    <input type="password" id="signer-key-input" placeholder="0x... (private key)" autocomplete="new-password" name="plov-signer-key-nofill">
                     <button class="btn-sm btn-green" onclick="saveSignerKey()" id="btn-save-signer">Save</button>
+                    <button class="btn-sm" type="button" onclick="toggleSignerKeyVisibility()" id="btn-toggle-signer-key" title="Show/hide">👁</button>
                 </div>
                 <p class="signer-security-note" id="signer-security-note">
                     🔒 Stored locally in your browser only. Never sent to our servers.
@@ -238,9 +239,6 @@
 </div>
 
 <div class="toast" id="toast"></div>
-
-<!-- risex-client SDK (CDN) -->
-<script src="https://cdn.jsdelivr.net/npm/risex-client@latest/dist/risex-client.umd.js"></script>
 
 <script src="js/config.js"></script>
 <script src="js/abi.js"></script>
