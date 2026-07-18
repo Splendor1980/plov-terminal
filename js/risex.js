@@ -148,6 +148,22 @@ async function registerSigner(uid) {
 }
 
 // fixSignatureV — исправляет v=0/1 → 27/28
+// RISEx ожидает permit.signature как base64 (OpenAPI format:byte —
+// стандартная конвенция protobuf/grpc-gateway для bytes-полей), не hex.
+// Подтверждено математически: наша 132-символьная hex-строка, ошибочно
+// прочитанная сервером как base64, даёт ровно 99 байт (132/4*3=99) —
+// именно это число сервер и вернул в ошибке.
+function hexSigToBase64(hexSig) {
+    const clean = hexSig.startsWith('0x') ? hexSig.slice(2) : hexSig;
+    const bytes = new Uint8Array(clean.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(clean.substr(i * 2, 2), 16);
+    }
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+}
+
 function fixSignatureV(sig) {
     const sigBytes = ethers.getBytes(sig);
     const v = sigBytes[64];
@@ -665,7 +681,7 @@ async function signAndPlaceOrder({ marketId, side, humanSize, humanPrice, orderT
         permit: {
             account, signer: signerAddress,
             nonce_anchor: String(nonceAnchor), nonce_bitmap_index: nonceBitmap,
-            deadline, signature,
+            deadline, signature: hexSigToBase64(signature),
         }
     };
     console.log('place-order body:', JSON.stringify(body));
@@ -707,7 +723,7 @@ async function signAndCancelOrder(marketId, orderId) {
         permit: {
             account, signer: signerAddress,
             nonce_anchor: String(nonceAnchor), nonce_bitmap_index: nonceBitmap,
-            deadline, signature,
+            deadline, signature: hexSigToBase64(signature),
         }
     };
 

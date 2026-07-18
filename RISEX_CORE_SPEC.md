@@ -148,7 +148,19 @@ POST /v1/orders/cancel
 cancelData = (marketId << 192) | orderId   →  keccak256(bytes32(cancelData))
 ```
 
-## 8. Открытые вопросы
+## 8. Формат подписи в permit — ПОДТВЕРЖДЕНО МАТЕМАТИЧЕСКИ
+
+`permit.signature` — **base64**, не hex! (стандартная конвенция OpenAPI
+`format: byte` / protobuf-JSON для bytes-полей). Подтверждено точным
+совпадением: наша 132-символьная hex-строка (65 байт), при ошибочном чтении
+как base64, даёт ровно `132/4*3 = 99` байт — именно это число сервер и вернул
+в ошибке `"signature must be 64 or 65 bytes, got 99"`. Исправлено через
+`hexSigToBase64()` в `js/risex.js`.
+
+⚠️ Не проверено: возможно, та же проблема есть у `account_signature`/
+`signer_signature` в `register-signer` (сейчас не критично — в delegate-режиме
+этот вызов пропускается, см. §1). Если понадобится self-authorized сценарий —
+проверить в первую очередь.
 
 - ~~Точная 47-байтовая схема ордера (п.5)~~ — **подтверждено вживую**: сервер
   вернул бизнес-валидацию ("market orders require FOK or IOC time_in_force"),
@@ -159,3 +171,5 @@ cancelData = (marketId << 192) | orderId   →  keccak256(bytes32(cancelData))
   `cross-margin-balance` — подтверждён и используется (см. §2).
 - SDK `risex-client` через CDN не работает (нет UMD-сборки в пакете) — торговый
   путь теперь полностью на собственной подписи, без SDK.
+
+## 9. Открытые вопросы
