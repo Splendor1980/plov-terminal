@@ -171,8 +171,9 @@ async function closeRealPosition() {
             : (position.entryPrice - lastPrice) * position.size;
 
         addToLog(`✅ Position closed at $${lastPrice.toFixed(2)}`, 'success');
-        if (pnl > 0) addToLog(`💰 Profit: $${pnl.toFixed(2)}`, 'success');
-        else if (pnl < 0) addToLog(`📉 Loss: $${pnl.toFixed(2)}`, 'error');
+        const pnlAbs = Math.abs(pnl).toFixed(Math.abs(pnl) < 1 ? 4 : 2);
+        if (pnl > 0) addToLog(`💰 Profit: $${pnlAbs}`, 'success');
+        else if (pnl < 0) addToLog(`📉 Loss: $${pnlAbs}`, 'error');
         if (result?.order_id) addToLog(`📋 Order ID: ${result.order_id}`, 'meta');
 
         position = null;

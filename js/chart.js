@@ -48,9 +48,18 @@ async function fetchCandles(marketId, tf) {
         const url = `${RISEX_API.rest}/v1/markets/id/${marketId}/trading-view-data`
                   + `?interval=${intervalNs}&from=${fromNs}&to=${nowNs}`;
         const res = await fetch(url);
-        if (!res.ok) return [];
-        const raw  = await res.json();
-        const rows = raw.data || [];
+        if (!res.ok) { console.warn('fetchCandles: HTTP', res.status); return []; }
+        const raw = await res.json();
+        console.log('📊 Raw candles response:', raw);
+
+        // Форма ответа не подтверждена железно — пробуем несколько вариантов
+        let rows = raw.data ?? raw;
+        if (rows && !Array.isArray(rows) && Array.isArray(rows.data))  rows = rows.data;
+        if (rows && !Array.isArray(rows) && Array.isArray(rows.items)) rows = rows.items;
+        if (!Array.isArray(rows)) {
+            console.warn('fetchCandles: unexpected shape, no array found', raw);
+            return [];
+        }
 
         return rows.map(r => ({
             time:   Number(BigInt(r.time) / 1_000_000n), // ns → ms

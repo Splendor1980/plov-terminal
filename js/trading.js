@@ -61,7 +61,7 @@ function renderMyTrades() {
     }
     el.innerHTML = myTrades.slice(0, 20).map(t => {
         const pnlStr = t.pnl !== null
-            ? `<span class="${t.pnl >= 0 ? 'green' : 'red'}">${t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(2)}</span>`
+            ? `<span class="${t.pnl >= 0 ? 'green' : 'red'}">${typeof formatPnL === 'function' ? formatPnL(t.pnl) : t.pnl.toFixed(2)}</span>`
             : '';
         const time = t.time instanceof Date
             ? t.time.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
@@ -246,6 +246,16 @@ function updatePositionUI(pos) {
     updatePnL();
 }
 
+function formatPnL(pnl) {
+    // Для мелких сумм (типично при тестовых позициях $1-5) 2 знака после
+    // запятой физически не показывают реальное движение цифры — берём
+    // больше точности для маленьких значений, меньше для крупных.
+    const abs = Math.abs(pnl);
+    const decimals = abs < 0.01 ? 6 : abs < 1 ? 4 : 2;
+    return (pnl >= 0 ? '+' : '') + pnl.toFixed(decimals);
+}
+window.formatPnL = formatPnL;
+
 function updatePnL() {
     if (!position || !position.size || position.size <= 0 || !lastPrice) return;
     const pnlEl = document.getElementById('pos-pnl');
@@ -255,7 +265,7 @@ function updatePnL() {
         ? (lastPrice - position.entryPrice) * position.size
         : (position.entryPrice - lastPrice) * position.size;
 
-    pnlEl.textContent = (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + ' USDC';
+    pnlEl.textContent = formatPnL(pnl) + ' USDC';
     pnlEl.className   = 'pos-val ' + (pnl >= 0 ? 'green' : 'red');
 }
 
