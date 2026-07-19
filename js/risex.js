@@ -758,7 +758,7 @@ async function signAndPlaceOrder({ marketId, side, humanSize, humanPrice, orderT
 }
 
 // ⚠️ Требует resting_order_id (из GET /v1/orders/open) — не «наш» client_order_id.
-async function signAndCancelOrder(marketId, restingOrderId) {
+async function signAndCancelOrder(marketId, orderId, restingOrderId) {
     if (!signer || !signerAddress) throw new Error('Signer not connected');
     if (!RISEX_CONTRACTS.router)   throw new Error('Router address not loaded (system/config)');
 
@@ -773,7 +773,7 @@ async function signAndCancelOrder(marketId, restingOrderId) {
 
     const body = {
         market_id: Number(marketId),
-        order_id:  String(restingOrderId),
+        order_id:  orderId, // оригинальный order_id (0x...), НЕ resting_order_id — тот только для хэша
         permit: {
             account, signer: signerAddress,
             nonce_anchor: String(nonceAnchor), nonce_bitmap_index: nonceBitmap,

@@ -298,16 +298,16 @@ function renderOpenOrders(orders) {
             <span class="mt-size">${size}</span>
             <span class="mt-lev">${o.reduce_only ? 'reduce' : '—'}</span>
             <button class="btn-sm btn-red" style="padding:2px 8px;font-size:11px;"
-                onclick="cancelOpenOrder(${o.market_id}, '${restingId}')">✕</button>
+                onclick="cancelOpenOrder(${o.market_id}, '${o.order_id}', '${restingId}')">✕</button>
         </div>`;
     }).join('');
 }
 
-async function cancelOpenOrder(marketId, restingOrderId) {
+async function cancelOpenOrder(marketId, orderId, restingOrderId) {
     if (typeof signAndCancelOrder !== 'function') return;
     addToLog('⏳ Cancelling order...', 'pending');
     try {
-        await signAndCancelOrder(marketId, restingOrderId);
+        await signAndCancelOrder(marketId, orderId, restingOrderId);
         addToLog('✅ Order cancelled', 'success');
         fetchOpenOrders();
     } catch (e) {

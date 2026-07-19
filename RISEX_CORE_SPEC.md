@@ -142,16 +142,28 @@ size_steps  = round(humanSize  / step_size)
 price_ticks = round(humanPrice / step_price)
 ```
 
-## 8. Cancel Order
+## 8. Cancel Order — ИСПРАВЛЕНО (order_id ≠ resting_order_id, перепутали)
 
 ```json
 POST /v1/orders/cancel
-{ "market_id": 1, "order_id": "...", "permit": {...той же формы...} }
+{ "market_id": 1, "order_id": "0x0000...0092" /* ОРИГИНАЛЬНЫЙ order_id, длинный hex */, "permit": {...} }
 ```
-`hash` для permit — из 32-байтовой упаковки:
+⚠️ Живая ошибка, которую поймали: если отправить `resting_order_id` (короткое
+число без `0x`) в поле `order_id` — сервер вернёт `invalid order_id: decode
+order_id hex: hex string without 0x prefix`. Это два разных значения:
+- **`order_id`** — длинный hex, идёт в тело запроса как есть.
+- **`resting_order_id`** — используется ТОЛЬКО для вычисления hash подписи
+  (ниже), в тело запроса не попадает.
+
+Hash для permit — из точной формулы SDK (bytes32,uint256,uint256):
 ```
-cancelData = (marketId << 192) | orderId   →  keccak256(bytes32(cancelData))
+hash = keccak256(abi.encode(["bytes32","uint256","uint256"],
+  [ACTION_CANCEL_ORDER_HASH, BigInt(market_id), BigInt(resting_order_id)]))
 ```
+`ACTION_CANCEL_ORDER_HASH = keccak256(toUtf8Bytes("RISE_PERPS_CANCEL_ORDER_V1"))`.
+
+Оба значения (`order_id` и `resting_order_id`) приходят вместе в одном
+объекте от `GET /v1/orders/open?account=&market_id=` (см. §7).
 
 ## 9. Формат подписи в permit — ПОДТВЕРЖДЕНО МАТЕМАТИЧЕСКИ
 
