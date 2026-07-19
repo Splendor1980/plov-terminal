@@ -129,6 +129,7 @@ async function placeRealOrder(side, amountUsdc, leverage, orderTypeStr = 'market
         }
 
         if (typeof fetchBalance === 'function') fetchBalance();
+        setTimeout(() => { if (typeof syncMyTrades === 'function') syncMyTrades(); }, 1500);
 
         return true;
 
@@ -179,6 +180,7 @@ async function closeRealPosition() {
         position = null;
         updatePositionUI(null);
         if (typeof fetchBalance === 'function') fetchBalance();
+        setTimeout(() => { if (typeof syncMyTrades === 'function') syncMyTrades(); }, 1500);
         return true;
 
     } catch (error) {
@@ -333,6 +335,50 @@ async function cancelOpenOrder(marketId, orderId, restingOrderId) {
         if (typeof loadRealPosition === 'function') loadRealPosition();
     }
 }
+
+// ── История сделок с биржи (источник правды) ────────────────
+// GET /v1/trade-history?account=&limit= — реальные исполненные fill'ы,
+// путь и форма подтверждены исходниками официального SDK (getAccountTradeHistory).
+// В отличие от локального myTrades (который живёт только в этом браузере
+// и пропадает/расходится с реальностью при закрытии вкладки до синхронизации),
+// это правда с сервера.
+
+async function fetchTradeHistory(limit = 30) {
+    const account = riseAccountAddress || signerAddress;
+    if (!account) return [];
+
+    try {
+        const res = await fetch(`${RISEX_API.rest}/v1/trade-history?account=${account}&limit=${limit}`);
+        if (!res.ok) return [];
+        const raw  = await res.json();
+        const rows = raw.data ?? raw;
+        const fills = Array.isArray(rows) ? rows : (Array.isArray(rows?.data) ? rows.data : []);
+
+        return fills.map(f => ({
+            side:     f.side === 0 ? 'LONG' : 'SHORT',
+            price:    parseFloat(f.price) || 0,
+            size:     parseFloat(f.size)  || 0,
+            leverage: null, // недоступно на уровне отдельного fill'а — не показываем то, чего не знаем
+            pnl:      null, // realized PnL — отдельный агрегированный эндпоинт, не по каждой сделке
+            time:     new Date(Number(BigInt(f.timestamp || '0') / 1_000_000n) || Date.now()),
+            orderId:  f.order_id,
+        }));
+    } catch (e) {
+        console.warn('fetchTradeHistory error:', e);
+        return [];
+    }
+}
+
+async function syncMyTrades() {
+    const fills = await fetchTradeHistory(30);
+    if (!fills.length) return;
+    if (typeof window.setMyTradesFromServer === 'function') {
+        window.setMyTradesFromServer(fills);
+    }
+}
+
+window.fetchTradeHistory = fetchTradeHistory;
+window.syncMyTrades      = syncMyTrades;
 
 window.fetchOpenOrders = fetchOpenOrders;
 window.cancelOpenOrder = cancelOpenOrder;

@@ -17,39 +17,49 @@ let stats = {
     best: 0, worst: 0
 };
 
-// История своих сделок (симуляция)
+// История своих сделок. Реальный источник правды — сервер (см.
+// syncMyTrades()/setMyTradesFromServer() в risex-real-trading.js).
+// addMyTrade() тут — только МГНОВЕННЫЙ локальный отклик сразу после клика,
+// до того как подтянется правда с биржи; помечается как 'pending' и
+// перезатирается при первой же серверной синхронизации.
 let myTrades = [];
 
 function addMyTrade(side, price, size, leverage, pnl = null) {
     const trade = {
-        side,
-        price,
-        size,
-        leverage,
-        pnl,
-        time: new Date()
+        side, price, size, leverage, pnl,
+        time: new Date(),
+        pending: true, // локальная, ещё не подтверждена сервером
     };
     myTrades.unshift(trade);
     if (myTrades.length > 100) myTrades.pop();
     renderMyTrades();
-    // Сохраняем
+}
+
+// Вызывается из risex-real-trading.js: syncMyTrades() → это ПОЛНАЯ замена
+// локального списка реальными данными с биржи (не merge, не догадки).
+function setMyTradesFromServer(fills) {
+    myTrades = fills;
+    renderMyTrades();
     if (currentUser) {
-        localStorage.setItem(`plov_trades_${currentUser.uid}`,
-            JSON.stringify(myTrades.slice(0, 50)));
+        try {
+            localStorage.setItem(`plov_trades_${currentUser.uid}`, JSON.stringify(myTrades.slice(0, 50)));
+        } catch {}
     }
 }
+window.setMyTradesFromServer = setMyTradesFromServer;
 
 function loadMyTrades() {
     if (!currentUser) return;
+    // Сначала — что успело сохраниться локально (мгновенно, для отклика),
+    // затем сразу подтягиваем правду с сервера и перезаписываем.
     try {
         const saved = localStorage.getItem(`plov_trades_${currentUser.uid}`);
         if (saved) {
-            myTrades = JSON.parse(saved).map(t => ({
-                ...t, time: new Date(t.time)
-            }));
+            myTrades = JSON.parse(saved).map(t => ({ ...t, time: new Date(t.time) }));
             renderMyTrades();
         }
     } catch {}
+    if (typeof syncMyTrades === 'function') syncMyTrades();
 }
 
 function renderMyTrades() {
@@ -60,18 +70,21 @@ function renderMyTrades() {
         return;
     }
     el.innerHTML = myTrades.slice(0, 20).map(t => {
-        const pnlStr = t.pnl !== null
+        const pnlStr = (t.pnl !== null && t.pnl !== undefined)
             ? `<span class="${t.pnl >= 0 ? 'green' : 'red'}">${typeof formatPnL === 'function' ? formatPnL(t.pnl) : t.pnl.toFixed(2)}</span>`
-            : '';
+            : '<span style="opacity:.4">—</span>';
+        const levStr = (t.leverage !== null && t.leverage !== undefined)
+            ? `×${t.leverage}` : '<span style="opacity:.4">—</span>';
         const time = t.time instanceof Date
             ? t.time.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
             : '';
         const sideClass = t.side === 'LONG' ? 'green' : 'red';
-        return `<div class="my-trade-row">
+        const pendingStyle = t.pending ? 'opacity:.6;' : '';
+        return `<div class="my-trade-row" style="${pendingStyle}" title="${t.pending ? 'Ожидает подтверждения с биржи...' : ''}">
             <span class="mt-side ${sideClass}">${t.side}</span>
             <span class="mt-price">${t.price.toFixed(1)}</span>
             <span class="mt-size">${t.size.toFixed(5)}</span>
-            <span class="mt-lev">×${t.leverage}</span>
+            <span class="mt-lev">${levStr}</span>
             <span class="mt-pnl">${pnlStr}</span>
             <span class="mt-time">${time}</span>
         </div>`;

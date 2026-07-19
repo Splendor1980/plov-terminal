@@ -165,7 +165,8 @@ function switchLogTab(tab) {
         if (pane) pane.style.display = t === tab ? 'block' : 'none';
         if (btn)  btn.classList.toggle('active', t === tab);
     });
-    if (tab === 'orders' && typeof fetchOpenOrders === 'function') fetchOpenOrders();
+    if (tab === 'orders'   && typeof fetchOpenOrders === 'function') fetchOpenOrders();
+    if (tab === 'mytrades' && typeof syncMyTrades    === 'function') syncMyTrades();
 }
 window.switchLogTab  = switchLogTab;
 window.toggleTheme   = toggleTheme;
