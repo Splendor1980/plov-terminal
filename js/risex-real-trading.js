@@ -100,7 +100,10 @@ async function placeRealOrder(side, amountUsdc, leverage, orderTypeStr = 'market
             // считаем позицию открытой заранее, только логируем размещение.
             addToLog(`✅ Limit ${side.toUpperCase()} order placed @ $${execPrice.toFixed(2)}`, 'success');
             addToLog(`📊 Size: ${positionSize.toFixed(6)} × ${leverage}x (resting, ждёт исполнения)`, 'meta');
-            setTimeout(() => { if (typeof loadRealPosition === 'function') loadRealPosition(); }, 2000);
+            setTimeout(() => {
+                if (typeof loadRealPosition === 'function') loadRealPosition();
+                if (typeof fetchOpenOrders   === 'function') fetchOpenOrders();
+            }, 2000);
             return true;
         }
 
@@ -309,10 +312,20 @@ async function cancelOpenOrder(marketId, orderId, restingOrderId) {
     try {
         await signAndCancelOrder(marketId, orderId, restingOrderId);
         addToLog('✅ Order cancelled', 'success');
-        fetchOpenOrders();
     } catch (e) {
         console.error('Cancel order error:', e);
-        addToLog(`❌ Cancel failed: ${e.message}`, 'error');
+        const msg = String(e.message || '');
+        if (/not open/i.test(msg)) {
+            // Ордер уже не в состоянии "open" (исполнился или отменён где-то
+            // ещё, наш список успел устареть) — не пугаем ошибкой, просто
+            // обновляем список и позицию (вдруг это стало реальной позицией).
+            addToLog('ℹ️ Order already closed/filled — refreshing', 'meta');
+        } else {
+            addToLog(`❌ Cancel failed: ${e.message}`, 'error');
+        }
+    } finally {
+        fetchOpenOrders();
+        if (typeof loadRealPosition === 'function') loadRealPosition();
     }
 }
 
