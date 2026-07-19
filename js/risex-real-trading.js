@@ -252,4 +252,71 @@ window.loadRealPosition  = loadRealPosition;
 window.closeRealPosition = closeRealPosition;
 window.fetchOrderHistory = fetchOrderHistory;
 
+// ── Открытые (незаполненные/частично заполненные) ордера ────
+// GET /v1/orders/open?account=&market_id= — точный путь и форма ответа
+// подтверждены исходниками официального SDK (getOpenOrders).
+
+async function fetchOpenOrders() {
+    const account = riseAccountAddress || signerAddress;
+    const listEl  = document.getElementById('open-orders-list');
+    if (!account) return [];
+
+    try {
+        const res = await fetch(`${RISEX_API.rest}/v1/orders/open?account=${account}&market_id=${currentMarket}`);
+        if (!res.ok) { if (listEl) listEl.innerHTML = '<div class="no-trades muted">No open orders</div>'; return []; }
+        const raw = await res.json();
+        const orders = raw.data?.orders || raw.orders || [];
+        renderOpenOrders(orders);
+        return orders;
+    } catch (e) {
+        console.warn('fetchOpenOrders error:', e);
+        return [];
+    }
+}
+
+function renderOpenOrders(orders) {
+    const listEl = document.getElementById('open-orders-list');
+    if (!listEl) return;
+
+    if (!orders.length) {
+        listEl.innerHTML = '<div class="no-trades muted">No open orders</div>';
+        return;
+    }
+
+    listEl.innerHTML = orders.map(o => {
+        const m         = getMarketConfig(o.market_id);
+        const stepPrice = parseFloat(m?.config?.step_price || '0.1') || 0.1;
+        const stepSize  = parseFloat(m?.config?.step_size  || '0.001') || 0.001;
+        const price     = (o.price_ticks * stepPrice).toFixed(2);
+        const size      = (o.size_steps  * stepSize).toFixed(6);
+        const sideLabel = o.side === 0 ? 'LONG' : 'SHORT';
+        const restingId = o.resting_order_id ?? o.order_id;
+
+        return `<div class="my-trade-row">
+            <span class="mt-side ${o.side === 0 ? 'green' : 'red'}">${sideLabel}</span>
+            <span class="mt-price">${price}</span>
+            <span class="mt-size">${size}</span>
+            <span class="mt-lev">${o.reduce_only ? 'reduce' : '—'}</span>
+            <button class="btn-sm btn-red" style="padding:2px 8px;font-size:11px;"
+                onclick="cancelOpenOrder(${o.market_id}, '${restingId}')">✕</button>
+        </div>`;
+    }).join('');
+}
+
+async function cancelOpenOrder(marketId, restingOrderId) {
+    if (typeof signAndCancelOrder !== 'function') return;
+    addToLog('⏳ Cancelling order...', 'pending');
+    try {
+        await signAndCancelOrder(marketId, restingOrderId);
+        addToLog('✅ Order cancelled', 'success');
+        fetchOpenOrders();
+    } catch (e) {
+        console.error('Cancel order error:', e);
+        addToLog(`❌ Cancel failed: ${e.message}`, 'error');
+    }
+}
+
+window.fetchOpenOrders = fetchOpenOrders;
+window.cancelOpenOrder = cancelOpenOrder;
+
 console.log('%cReal Trading Module loaded', 'color:#00ff9d;font-weight:bold');

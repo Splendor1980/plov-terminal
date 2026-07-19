@@ -148,6 +148,7 @@
                 <button class="log-tab active" id="tab-log"      onclick="switchLogTab('log')">📋 Log</button>
                 <button class="log-tab"         id="tab-trades"   onclick="switchLogTab('trades')">⚡ Trades</button>
                 <button class="log-tab"         id="tab-mytrades" onclick="switchLogTab('mytrades')">💼 My Trades</button>
+                <button class="log-tab"         id="tab-orders"   onclick="switchLogTab('orders')">📑 Orders</button>
             </div>
             <div class="log-pane" id="pane-log">
                 <div class="trade-log" id="trade-log">
@@ -166,6 +167,14 @@
                 </div>
                 <div class="my-trades-list-inline" id="my-trades-list">
                     <div class="no-trades muted">No trades yet</div>
+                </div>
+            </div>
+            <div class="log-pane" id="pane-orders" style="display:none">
+                <div class="my-trades-header-inline" id="orders-header">
+                    <span>Side</span><span>Price</span><span>Size</span><span>Filled</span><span></span>
+                </div>
+                <div class="my-trades-list-inline" id="open-orders-list">
+                    <div class="no-trades muted">No open orders</div>
                 </div>
             </div>
         </div>

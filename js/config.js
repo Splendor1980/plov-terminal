@@ -49,7 +49,7 @@ const MARKETS = { BTC: 1, ETH: 2 };
 
 let currentLang     = 'en';
 let currentMarket   = 1;
-let currentLeverage = 10;
+let currentLeverage = 1;
 
 window.firebaseConfig  = firebaseConfig;
 window.RISE_CHAIN      = RISE_CHAIN;

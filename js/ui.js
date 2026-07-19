@@ -203,12 +203,13 @@ function initUI() {
 }
 
 function switchLogTab(tab) {
-    ['log', 'trades', 'mytrades'].forEach(t => {
+    ['log', 'trades', 'mytrades', 'orders'].forEach(t => {
         const pane = document.getElementById(`pane-${t}`);
         const btn  = document.getElementById(`tab-${t}`);
         if (pane) pane.style.display = t === tab ? 'block' : 'none';
         if (btn)  btn.classList.toggle('active', t === tab);
     });
+    if (tab === 'orders' && typeof fetchOpenOrders === 'function') fetchOpenOrders();
 }
 window.switchLogTab  = switchLogTab;
 window.toggleTheme   = toggleTheme;
