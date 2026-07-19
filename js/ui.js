@@ -3,9 +3,7 @@
 // ============================================================
 
 let lastPrice    = 0;
-let priceHistory = [];
 let priceInterval = null;
-const MAX_BARS   = 60;
 
 // ── Тема ─────────────────────────────────────────────────────
 
@@ -102,10 +100,8 @@ function updatePriceUI(price) {
         }
     }
 
-    // История для графика
-    priceHistory.push(price);
-    if (priceHistory.length > MAX_BARS) priceHistory.shift();
-    updateChart();
+    // Живое обновление текущей (формирующейся) свечи — js/chart.js
+    if (typeof updateLiveCandle === 'function') updateLiveCandle(price);
 
     // PnL позиции
     if (typeof updatePnL === 'function') updatePnL();
@@ -119,47 +115,7 @@ function updatePriceUI(price) {
     }
 }
 
-// ── График (SVG-bars) ─────────────────────────────────────────
-
-function initChart() {
-    const container = document.getElementById('chart-container');
-    if (!container) return;
-    container.innerHTML = '';
-    for (let i = 0; i < MAX_BARS; i++) {
-        const bar = document.createElement('div');
-        bar.className = 'chart-bar';
-        bar.style.height = '4px';
-        container.appendChild(bar);
-    }
-}
-
-function updateChart() {
-    const bars = document.querySelectorAll('.chart-bar');
-    if (!bars.length || priceHistory.length < 2) return;
-
-    const min   = Math.min(...priceHistory);
-    const max   = Math.max(...priceHistory);
-    const range = max - min || 1;
-    const high  = document.getElementById('chart-high');
-    const low   = document.getElementById('chart-low');
-    if (high) high.textContent = 'H: ' + max.toFixed(0);
-    if (low)  low.textContent  = 'L: ' + min.toFixed(0);
-
-    const start = Math.max(0, priceHistory.length - bars.length);
-    const vis   = priceHistory.slice(start);
-
-    bars.forEach((bar, i) => {
-        if (i < vis.length) {
-            const h   = Math.max(3, ((vis[i] - min) / range) * 96);
-            const up  = i > 0 ? vis[i] >= vis[i - 1] : true;
-            bar.style.height = h + '%';
-            bar.className    = 'chart-bar ' + (up ? 'green' : 'red');
-        } else {
-            bar.style.height = '4px';
-            bar.className    = 'chart-bar';
-        }
-    });
-}
+// ── График — см. js/chart.js (реальные OHLCV-свечи с RISEx) ───
 
 // ── Прайс-фид через REST polling (резервный) ─────────────────
 // WebSocket — основной источник цены. REST — резервный если WS упал.

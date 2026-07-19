@@ -70,7 +70,8 @@ async function placeRealOrder(side, amountUsdc, leverage, orderTypeStr = 'market
         return false;
     }
 
-    const realBalance = await getRealBalance();
+    if (typeof fetchBalance === 'function') await fetchBalance();
+    const realBalance = userWallet.risexBalance ?? await getRealBalance();
     if (realBalance < amountUsdc) {
         addToLog(`❌ Insufficient balance. Have: ${realBalance.toFixed(2)}, need: ${amountUsdc}`, 'error');
         return false;
@@ -127,6 +128,8 @@ async function placeRealOrder(side, amountUsdc, leverage, orderTypeStr = 'market
             addMyTrade(side, execPrice, positionSize, leverage, result?.order_id);
         }
 
+        if (typeof fetchBalance === 'function') fetchBalance();
+
         return true;
 
     } catch (error) {
@@ -164,8 +167,8 @@ async function closeRealPosition() {
         });
 
         const pnl = position.side === 'long'
-            ? (lastPrice - position.entryPrice) * position.size * position.leverage
-            : (position.entryPrice - lastPrice) * position.size * position.leverage;
+            ? (lastPrice - position.entryPrice) * position.size
+            : (position.entryPrice - lastPrice) * position.size;
 
         addToLog(`✅ Position closed at $${lastPrice.toFixed(2)}`, 'success');
         if (pnl > 0) addToLog(`💰 Profit: $${pnl.toFixed(2)}`, 'success');
@@ -174,6 +177,7 @@ async function closeRealPosition() {
 
         position = null;
         updatePositionUI(null);
+        if (typeof fetchBalance === 'function') fetchBalance();
         return true;
 
     } catch (error) {

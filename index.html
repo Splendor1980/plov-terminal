@@ -88,7 +88,13 @@
         </div>
 
         <div class="chart-wrap">
-            <div class="chart-container" id="chart-container"></div>
+            <canvas class="chart-canvas" id="chart-canvas"></canvas>
+            <div class="chart-tf-row" id="chart-tf-row">
+                <button class="chart-tf-btn active" data-tf="1m"  onclick="setChartTimeframe('1m')">1m</button>
+                <button class="chart-tf-btn"        data-tf="5m"  onclick="setChartTimeframe('5m')">5m</button>
+                <button class="chart-tf-btn"        data-tf="15m" onclick="setChartTimeframe('15m')">15m</button>
+                <button class="chart-tf-btn"        data-tf="1h"  onclick="setChartTimeframe('1h')">1h</button>
+            </div>
             <div class="chart-labels">
                 <span id="chart-high">H: ---</span>
                 <span id="chart-low">L: ---</span>
@@ -272,6 +278,7 @@
 <script src="js/auth.js"></script>
 <script src="js/risex.js"></script>
 <script src="js/risex-real-trading.js"></script>
+<script src="js/chart.js"></script>
 <script src="js/trading.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/subscription.js"></script>

@@ -350,7 +350,9 @@ function _handleWsMessage(msg) {
             if (frEl) frEl.textContent = `FR: ${fr}%`;
         }
     } else if (channel === 'positions' || channel === 'position') {
-        if (data) updatePositionUI(data);
+        // Не доверяем сырой форме WS-пейлоада напрямую (не подтверждена
+        // вживую) — просто триггерим уже проверенный REST-путь с нормализацией.
+        if (typeof loadRealPosition === 'function') loadRealPosition();
     } else if (channel === 'subscribed' || channel === 'pong' || channel === 'connected') {
         // служебные сообщения — игнорируем
     } else {
@@ -445,7 +447,7 @@ function renderOrderBook(data) {
             <div class="ob-depth-bar" style="width:${pct}%"></div>`;
         row.onclick = () => {
             const inp = document.getElementById('amount-input');
-            if (inp) inp.value = size.toFixed(2);
+            if (inp) inp.value = total.toFixed(2); // total (price×size, USDC) — не raw BTC size
         };
         asksEl.appendChild(row);
     });
@@ -467,7 +469,7 @@ function renderOrderBook(data) {
             <div class="ob-depth-bar" style="width:${pct}%"></div>`;
         row.onclick = () => {
             const inp = document.getElementById('amount-input');
-            if (inp) inp.value = size.toFixed(2);
+            if (inp) inp.value = total.toFixed(2); // total (price×size, USDC) — не raw BTC size
         };
         bidsEl.appendChild(row);
     });

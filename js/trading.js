@@ -252,8 +252,8 @@ function updatePnL() {
     if (!pnlEl) return;
 
     const pnl = position.side === 'long'
-        ? (lastPrice - position.entryPrice) * position.size * (position.leverage || 1)
-        : (position.entryPrice - lastPrice) * position.size * (position.leverage || 1);
+        ? (lastPrice - position.entryPrice) * position.size
+        : (position.entryPrice - lastPrice) * position.size;
 
     pnlEl.textContent = (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + ' USDC';
     pnlEl.className   = 'pos-val ' + (pnl >= 0 ? 'green' : 'red');
