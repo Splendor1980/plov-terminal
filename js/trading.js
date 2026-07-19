@@ -92,11 +92,39 @@ async function handleSellClick() {
     await _submit('SHORT');
 }
 
+let currentOrderType = 'market'; // 'market' | 'limit'
+
+function setOrderType(mode) {
+    currentOrderType = mode;
+    const mBtn = document.getElementById('otype-market');
+    const lBtn = document.getElementById('otype-limit');
+    const priceWrap = document.getElementById('limit-price-wrap');
+    if (mBtn) mBtn.classList.toggle('active', mode === 'market');
+    if (lBtn) lBtn.classList.toggle('active', mode === 'limit');
+    if (priceWrap) priceWrap.style.display = mode === 'limit' ? 'flex' : 'none';
+    if (mode === 'limit') {
+        const priceInp = document.getElementById('limit-price-input');
+        if (priceInp && !priceInp.value && typeof lastPrice === 'number' && lastPrice > 0) {
+            priceInp.value = lastPrice.toFixed(1);
+        }
+    }
+}
+window.setOrderType = setOrderType;
+
 async function _submit(side) {
     const inp    = document.getElementById('amount-input');
     const amount = parseFloat(inp?.value);
     if (!amount || amount <= 0) {
         addToLog('⚠️ Введите сумму USDC', 'warning'); return;
+    }
+
+    let limitPrice = null;
+    if (currentOrderType === 'limit') {
+        const priceInp = document.getElementById('limit-price-input');
+        limitPrice = parseFloat(priceInp?.value);
+        if (!limitPrice || limitPrice <= 0) {
+            addToLog('⚠️ Введите цену лимитного ордера', 'warning'); return;
+        }
     }
 
     const balance = userWallet.risexBalance || userWallet.balances.usdc || 0;
@@ -112,7 +140,7 @@ async function _submit(side) {
     if (sellBtn) sellBtn.disabled = true;
 
     try {
-        await placeOrder(side, amount, currentLeverage, currentUser.uid);
+        await placeOrder(side, amount, currentLeverage, currentUser.uid, currentOrderType, limitPrice);
     } finally {
         isSubmitting = false;
         if (buyBtn)  buyBtn.disabled  = false;
@@ -125,7 +153,17 @@ async function _submit(side) {
 function setPct(pct) {
     const balance = userWallet.risexBalance || userWallet.balances.usdc || 0;
     const inp     = document.getElementById('amount-input');
-    if (inp) inp.value = (balance * pct / 100).toFixed(2);
+    if (!inp) return;
+
+    let amount = balance * pct / 100;
+    // Округляем ВНИЗ, не вверх — toFixed(2) на 6.996 даёт "7.00", что больше
+    // реального баланса и ломает ордер (недостаточно маржи).
+    amount = Math.floor(amount * 100) / 100;
+    // На MAX оставляем небольшой буфер — комиссии/спред всё равно списывают
+    // чуть больше номинала ордера.
+    if (pct >= 100) amount = Math.max(0, amount - 0.01);
+
+    inp.value = amount.toFixed(2);
 }
 
 // ── Режим торговли ────────────────────────────────────────────

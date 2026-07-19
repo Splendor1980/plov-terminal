@@ -55,13 +55,18 @@ async function getRealBalance() {
 
 // ── Размещение реального ордера (собственная подпись) ───────
 
-async function placeRealOrder(side, amountUsdc, leverage) {
+async function placeRealOrder(side, amountUsdc, leverage, orderTypeStr = 'market', limitPrice = null) {
     if (!signer || !signerAddress) {
         addToLog('❌ Signer not connected', 'error');
         return false;
     }
     if (!lastPrice || lastPrice <= 0) {
         addToLog('❌ No price data available', 'error');
+        return false;
+    }
+    const isLimit = orderTypeStr === 'limit';
+    if (isLimit && (!limitPrice || limitPrice <= 0)) {
+        addToLog('❌ Limit price required', 'error');
         return false;
     }
 
@@ -71,29 +76,41 @@ async function placeRealOrder(side, amountUsdc, leverage) {
         return false;
     }
 
-    addToLog('⏳ Placing real order on RISEx...', 'pending');
+    addToLog(isLimit ? '⏳ Placing limit order on RISEx...' : '⏳ Placing real order on RISEx...', 'pending');
 
     try {
-        const positionSize = (amountUsdc * leverage) / lastPrice;
-        const sideCode = side.toLowerCase() === 'long' ? 0 : 1; // 0=Buy/Long, 1=Sell/Short
+        const execPrice     = isLimit ? limitPrice : lastPrice;
+        const positionSize  = (amountUsdc * leverage) / execPrice;
+        const sideCode      = side.toLowerCase() === 'long' ? 0 : 1; // 0=Buy/Long, 1=Sell/Short
 
         const result = await signAndPlaceOrder({
-            marketId:   currentMarket,
-            side:       sideCode,
-            humanSize:  positionSize,
-            humanPrice: lastPrice,
-            orderType:  ORDER_TYPE.MARKET,
-            timeInForce: TIF.IOC, // маркет-ордера требуют FOK/IOC, GTC не принимается
+            marketId:    currentMarket,
+            side:        sideCode,
+            humanSize:   positionSize,
+            humanPrice:  execPrice,
+            orderType:   isLimit ? ORDER_TYPE.LIMIT : ORDER_TYPE.MARKET,
+            timeInForce: isLimit ? TIF.GTC : TIF.IOC, // маркет требует FOK/IOC; лимит обычно GTC
         });
 
-        addToLog(`✅ ${side.toUpperCase()} opened at $${lastPrice.toFixed(2)}`, 'success');
-        addToLog(`📊 Size: ${positionSize.toFixed(6)} × ${leverage}x`, 'success');
         if (result?.order_id) addToLog(`📋 Order ID: ${result.order_id}`, 'meta');
+
+        if (isLimit) {
+            // Лимитный ордер может просто повиснуть в стакане, а не исполниться
+            // сразу — в отличие от market/IOC (подтверждено вживую). Поэтому НЕ
+            // считаем позицию открытой заранее, только логируем размещение.
+            addToLog(`✅ Limit ${side.toUpperCase()} order placed @ $${execPrice.toFixed(2)}`, 'success');
+            addToLog(`📊 Size: ${positionSize.toFixed(6)} × ${leverage}x (resting, ждёт исполнения)`, 'meta');
+            setTimeout(() => { if (typeof loadRealPosition === 'function') loadRealPosition(); }, 2000);
+            return true;
+        }
+
+        addToLog(`✅ ${side.toUpperCase()} opened at $${execPrice.toFixed(2)}`, 'success');
+        addToLog(`📊 Size: ${positionSize.toFixed(6)} × ${leverage}x`, 'success');
 
         position = {
             side: side.toLowerCase(),
             size: positionSize,
-            entryPrice: lastPrice,
+            entryPrice: execPrice,
             leverage: leverage,
             margin: amountUsdc,
             orderId: result?.order_id || null,
@@ -104,7 +121,7 @@ async function placeRealOrder(side, amountUsdc, leverage) {
         saveStats(side, amountUsdc * leverage, true);
 
         if (typeof addMyTrade === 'function') {
-            addMyTrade(side, lastPrice, positionSize, leverage, result?.order_id);
+            addMyTrade(side, execPrice, positionSize, leverage, result?.order_id);
         }
 
         return true;

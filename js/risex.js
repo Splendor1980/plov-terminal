@@ -800,10 +800,10 @@ window.TIF                = TIF;
 
 // ── Размещение ордера ────────────────────────────────────────
 
-async function placeOrder(side, amountUsdc, leverage) {
+async function placeOrder(side, amountUsdc, leverage, uid, orderTypeStr = 'market', limitPrice = null) {
     // Использовать реальную функцию из risex-real-trading.js
     if (typeof placeRealOrder === 'function') {
-        return await placeRealOrder(side, amountUsdc, leverage);
+        return await placeRealOrder(side, amountUsdc, leverage, orderTypeStr, limitPrice);
     }
 
     // Fallback если модуль не загружен
