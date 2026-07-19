@@ -54,80 +54,85 @@ decimal-строка**, делить на 1e6/1e18 не нужно, просто
 EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)
 ```
 
-## 4. Register Signer — ИСПРАВЛЕНО
+## 4. Register Signer — ИСПРАВЛЕНО (дока оказалась устаревшей!)
 
-Старый код подписывал структуру с полями `account`+`nonceAnchor`+`nonceBitmap`,
-которой нет ни в одном источнике доки. Верно (подтверждено двумя независимыми
-страницами доки — `authservice_registersigner` и `integration.md`):
+⚠️ Доковый текст (`authservice_registersigner`, `integration.md`) утверждает
+`RegisterSigner(address signer,string message,uint40 expiration,uint256 nonce)`
+— это **устарело/неверно**. Точная структура — из исходников официального SDK
+`risex-client@0.1.11` (`createRegisterSignerSignatures`):
 
 ```
-RegisterSigner(address signer,string message,uint40 expiration,uint256 nonce)   — подписывает account
-VerifySigner(address account,uint256 nonce)                                      — подписывает signer
+RegisterSigner(address account,address signer,string message,uint32 expiration,uint48 nonceAnchor,uint8 nonceBitmap)  — подписывает account
+VerifySigner(address account,uint48 nonceAnchor,uint8 nonceBitmap)                                                     — подписывает signer
 ```
-`nonce` — обычный уникальный uint256 (используем `Date.now()`), НЕ nonce_anchor/bitmap.
+`message` — фиксированная строка **"Registering signer for RISEx"** (не любая
+своя). `nonceAnchor = nonce_anchor+1`, `nonceBitmap = 0` (для ЭТОЙ функции — не
+путать с nonce для order-permit'ов, там другая логика, см. §6).
 
 ```json
 POST /v1/auth/register-signer
 {
-  "account", "signer", "message", "nonce", "expiration",
-  "account_signature", "signer_signature"
+  "account", "signer", "message",
+  "nonce_anchor", "nonce_bitmap_index", "expiration",
+  "account_signature", "signer_signature",   // hex, НЕ base64 (в отличие от permit.signature в ордерах!)
+  "label"
 }
 ```
 
-## 5. Place Order
+## 5. Place Order — ТОЧНАЯ ФОРМУЛА ИЗ ИСХОДНИКОВ SDK
 
-Wire-формат — из OpenAPI (`orderservice_placeorder`), это то, что реально
-принимает сервер:
+Публичная дока НЕ даёт формулу для ордера (в отличие от isolated-margin/
+leverage/margin-mode). Формула извлечена из исходников официального SDK
+`risex-client@0.1.11` (npm-пакет, `dist/esm/index.mjs`) — то есть это не
+догадка, а точная копия того, что использует сам RISEx.
 
-```json
-POST /v1/orders/place
-{
-  "market_id": 1,
-  "size_steps": 100,      // размер В ШАГАХ (см. п.6), не в human-units
-  "price_ticks": 50000,   // цена В ТИКАХ, не в human-units
-  "side": 0,               // 0=Buy, 1=Sell
-  "order_type": 0,         // 0=Market, 1=Limit
-  "time_in_force": 0,      // 0=GTC,1=GTT,2=FOK,3=IOC
-  "post_only": false,
-  "reduce_only": false,
-  "stp_mode": 0,
-  "builder_id": 0,
-  "client_order_id": "0",
-  "ttl_units": 0,
-  "permit": {
-    "account": "0x...", "signer": "0x...",
-    "nonce_anchor": "2", "nonce_bitmap_index": 0,
-    "deadline": 1735689600,
-    "signature": "0x..."
-  }
-}
+**Хэш ордера — НЕ 47 сырых байт (это была ошибочная версия из integration.md).**
+Правильно: один битово-упакованный `uint256` + `abi.encode`:
+
+```js
+ACTION_PLACE_ORDER_HASH = keccak256(toUtf8Bytes("RISE_PERPS_PLACE_ORDER_V1"))
+
+// orderFlags — один байт:
+orderFlags = (side&1) | (post_only?2:0) | (reduce_only?4:0)
+           | ((stp_mode&3)<<3) | ((order_type&1)<<5) | ((time_in_force&3)<<6)
+
+// packed uint256:
+data = (market_id & 0xFFFF) << 70n
+     | (size_steps & 0xFFFFFFFF) << 38n
+     | (price_ticks & 0xFFFFFF) << 14n
+     | (orderFlags & 0xFF) << 6n
+     | (1 /* headerVersion */ << 1)   // headerVersion всегда 1
+
+headerFlags = 1 /* V3_FLAG_PERMIT */  // + biты BUILDER(2)/CLIENT_ID(4)/TTL(16) если применимо
+
+hash = keccak256(abi.encode(
+  ["bytes32","uint8","uint256","uint16","uint64","uint16"],
+  [ACTION_PLACE_ORDER_HASH, headerFlags, data, builder_id, BigInt(client_order_id), ttl_units]
+))
 ```
 
-Подпись (по аналогии с update-leverage/update-margin-mode/update-isolated-margin,
-единственная схема, подтверждённая ПОВТОРНО в доке с точной формулой):
+Permit — тот же `VerifyWitness`, что и везде (§8), `target` = router.
 
-```
-VerifyWitness(address account,address target,bytes32 hash,uint48 nonceAnchor,uint8 nonceBitmap,uint32 deadline)
-target = router address (RISExUniversalRouter, из /v1/system/config → addresses.router)
-hash   = keccak256(encodeOrderData(...))   — 47 байт, схема ниже
-```
+⚠️ **Market-ордера всегда `price_ticks: 0`** (не текущая цена!) — подтверждено
+из `marketBuy`/`marketSell` в SDK. `order_type: 0=Market,1=Limit`,
+`time_in_force: 3=IOC` для маркет-ордеров (`0=GTC` для лимитных) —
+подтверждено оттуда же, совпадает с бизнес-валидацией сервера, которую мы
+поймали вживую ("market orders require FOK or IOC").
 
-⚠️ **Единственное, что НЕ подтверждено дважды** — точная 47-байтовая упаковка
-ордера под hash (взята из `integration.md`, т.к. OpenAPI не даёт этой детали).
-Если размещение ордера падает с ошибкой подписи — **это первое место для
-проверки**, вместе с ошибкой из `GET /v1/error-codes`.
+## 6. Nonce для permit — ИСПРАВЛЕНО (расхождение с SDK)
 
+Было: `nonceAnchor = current+1, nonceBitmap = 0` всегда. Правильно (из
+`createPermitParams` в SDK):
 ```
-[0:8]   uint64  marketId (BE)
-[8:24]  uint128 size     (BE, 18 decimals)
-[24:40] uint128 price    (BE, 18 decimals)
-[40]    uint8   flags: bit0=side, bit1=postOnly, bit2=reduceOnly, bit3-4=stpMode
-[41]    uint8   orderType
-[42]    uint8   timeInForce
-[43:47] uint32  expiry (BE)
+nonceAnchor = nonce_anchor (БЕЗ +1)
+nonceBitmap = current_bitmap_index (не всегда 0!)
+если nonceBitmap > 207: nonceAnchor += 1, nonceBitmap = 0
 ```
+Для `register-signer` (отдельная функция `createRegisterSignerSignatures`) —
+там `+1` и `bitmap=0` ДЕЙСТВИТЕЛЬНО верны, это не противоречие, две разные
+функции с разной логикой.
 
-## 6. Конвертация human-units → steps/ticks
+## 7. Конвертация human-units → steps/ticks
 
 Из `GET /v1/markets` → `market.config`: `step_size` (мин. шаг размера),
 `step_price` (мин. шаг цены), оба — decimal-строки.
@@ -137,7 +142,7 @@ size_steps  = round(humanSize  / step_size)
 price_ticks = round(humanPrice / step_price)
 ```
 
-## 7. Cancel Order
+## 8. Cancel Order
 
 ```json
 POST /v1/orders/cancel
@@ -148,7 +153,7 @@ POST /v1/orders/cancel
 cancelData = (marketId << 192) | orderId   →  keccak256(bytes32(cancelData))
 ```
 
-## 8. Формат подписи в permit — ПОДТВЕРЖДЕНО МАТЕМАТИЧЕСКИ
+## 9. Формат подписи в permit — ПОДТВЕРЖДЕНО МАТЕМАТИЧЕСКИ
 
 `permit.signature` — **base64**, не hex! (стандартная конвенция OpenAPI
 `format: byte` / protobuf-JSON для bytes-полей). Подтверждено точным
@@ -172,4 +177,4 @@ cancelData = (marketId << 192) | orderId   →  keccak256(bytes32(cancelData))
 - SDK `risex-client` через CDN не работает (нет UMD-сборки в пакете) — торговый
   путь теперь полностью на собственной подписи, без SDK.
 
-## 9. Открытые вопросы
+## 10. Открытые вопросы

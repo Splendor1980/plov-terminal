@@ -83,43 +83,60 @@ async function registerSigner(uid) {
 
         const domain = await fetchEip712Domain();
 
-        // RegisterSigner(address signer,string message,uint40 expiration,uint256 nonce)
-        // VerifySigner(address account,uint256 nonce)
-        // Подтверждено ДВАЖДЫ независимыми страницами доки (authservice_registersigner
-        // и integration.md) — см. RISEX_CORE_SPEC.md §4.
-        const nonce      = Date.now().toString();
+        // Структура и точный текст message взяты из исходников официального
+        // SDK risex-client@0.1.11 (createRegisterSignerSignatures) — доковый
+        // текст (uint256 nonce без account) оказался устаревшим/неверным.
+        const REGISTER_SIGNER_MESSAGE = 'Registering signer for RISEx';
         const expiration = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60; // 7 дней
+
+        let authNonceAnchor = 1;
+        const authNonceBitmap = 0;
+        try {
+            const nres = await fetch(`${RISEX_API.rest}/v1/nonce-state/${account}`);
+            if (nres.ok) {
+                const nraw = await nres.json();
+                const nd   = nraw.data || nraw;
+                authNonceAnchor = Number(nd.nonce_anchor || 0) + 1;
+            }
+        } catch (e) { console.warn('nonce-state error:', e.message); }
 
         const REGISTER_SIGNER_TYPES = {
             RegisterSigner: [
-                { name: 'signer',     type: 'address' },
-                { name: 'message',    type: 'string'  },
-                { name: 'expiration', type: 'uint40'  },
-                { name: 'nonce',      type: 'uint256' },
+                { name: 'account',     type: 'address' },
+                { name: 'signer',      type: 'address' },
+                { name: 'message',     type: 'string'  },
+                { name: 'expiration',  type: 'uint32'  },
+                { name: 'nonceAnchor', type: 'uint48'  },
+                { name: 'nonceBitmap', type: 'uint8'   },
             ]
         };
-        const message = 'Register signer for RISEx trading';
-
         const accountSig = fixSignatureV(
             await signer.signTypedData(domain, REGISTER_SIGNER_TYPES, {
-                signer: signerAddress, message, expiration, nonce,
+                account, signer: signerAddress, message: REGISTER_SIGNER_MESSAGE,
+                expiration, nonceAnchor: authNonceAnchor, nonceBitmap: authNonceBitmap,
             })
         );
 
         const VERIFY_SIGNER_TYPES = {
             VerifySigner: [
-                { name: 'account', type: 'address' },
-                { name: 'nonce',   type: 'uint256' },
+                { name: 'account',     type: 'address' },
+                { name: 'nonceAnchor', type: 'uint48'  },
+                { name: 'nonceBitmap', type: 'uint8'   },
             ]
         };
         const signerSig = fixSignatureV(
-            await signer.signTypedData(domain, VERIFY_SIGNER_TYPES, { account, nonce })
+            await signer.signTypedData(domain, VERIFY_SIGNER_TYPES, {
+                account, nonceAnchor: authNonceAnchor, nonceBitmap: authNonceBitmap,
+            })
         );
 
         const body = {
-            account, signer: signerAddress, message, nonce, expiration,
+            account, signer: signerAddress, message: REGISTER_SIGNER_MESSAGE,
+            nonce_anchor: String(authNonceAnchor), nonce_bitmap_index: authNonceBitmap,
+            expiration: String(expiration),
             account_signature: accountSig,
             signer_signature:  signerSig,
+            label: 'plov-terminal',
         };
         console.log('register-signer body:', JSON.stringify(body));
 
@@ -566,49 +583,95 @@ function toPriceTicks(humanPrice, marketId) {
     return Math.max(1, Math.round(humanPrice / tick));
 }
 
-// 47-байтовая упаковка ордера под hash — см. RISEX_CORE_SPEC.md §5
-// (единственная деталь, НЕ подтверждённая дважды в доке — первое место
-// для проверки, если place-order будет падать с ошибкой подписи).
-function encodeOrderData({ marketId, sizeWad, priceWad, side, postOnly, reduceOnly, stpMode, orderType, timeInForce, expiry }) {
-    const data = new Uint8Array(47);
-    const view = new DataView(data.buffer);
+// ── Точные константы и кодирование ордера — извлечены из исходников
+// официального SDK risex-client@0.1.11 (npm), т.к. в публичной доке
+// формула для PlaceOrder не расписана (в отличие от isolated-margin/
+// leverage/margin-mode). Полное совпадение 1-в-1 с dist/esm/index.mjs.
+const ACTION_PLACE_ORDER        = 'RISE_PERPS_PLACE_ORDER_V1';
+const ACTION_CANCEL_ORDER       = 'RISE_PERPS_CANCEL_ORDER_V1';
+const ACTION_CANCEL_ALL_ORDERS  = 'RISE_PERPS_CANCEL_ALL_ORDERS_V1';
+const ACTION_PLACE_ORDER_HASH       = ethers.keccak256(ethers.toUtf8Bytes(ACTION_PLACE_ORDER));
+const ACTION_CANCEL_ORDER_HASH      = ethers.keccak256(ethers.toUtf8Bytes(ACTION_CANCEL_ORDER));
+const ACTION_CANCEL_ALL_ORDERS_HASH = ethers.keccak256(ethers.toUtf8Bytes(ACTION_CANCEL_ALL_ORDERS));
 
-    view.setBigUint64(0, BigInt(marketId), false);
+const V3_FLAG_PERMIT        = 1;
+const V3_FLAG_BUILDER       = 2;
+const V3_FLAG_CLIENT_ID     = 4;
+const V3_FLAG_PERMIT_ERC1271 = 9;
+const V3_FLAG_TTL           = 16;
 
-    const sizeBytes  = ethers.getBytes(ethers.zeroPadValue(ethers.toBeHex(sizeWad), 16));
-    data.set(sizeBytes, 8);
-    const priceBytes = ethers.getBytes(ethers.zeroPadValue(ethers.toBeHex(priceWad), 16));
-    data.set(priceBytes, 24);
+// Один битово-упакованный uint256 (НЕ 47 сырых байт — это была ошибочная
+// версия из integration.md). side/post_only/reduce_only/stp_mode/order_type/
+// time_in_force упаковываются в один байт orderFlags, а market_id/size_steps/
+// price_ticks/orderFlags/headerVersion — в uint256 через битовые сдвиги.
+function encodeOrderDataPacked(p) {
+    let orderFlags = 0;
+    if (p.side & 1)   orderFlags |= 1;
+    if (p.post_only)  orderFlags |= 2;
+    if (p.reduce_only) orderFlags |= 4;
+    orderFlags |= (p.stp_mode & 3) << 3;
+    orderFlags |= (p.order_type & 1) << 5;
+    orderFlags |= (p.time_in_force & 3) << 6;
 
-    let flags = 0;
-    flags |= (side & 1);
-    flags |= (postOnly   ? 1 : 0) << 1;
-    flags |= (reduceOnly ? 1 : 0) << 2;
-    flags |= (stpMode & 3) << 3;
-    data[40] = flags;
-
-    data[41] = orderType;
-    data[42] = timeInForce;
-    view.setUint32(43, expiry >>> 0, false);
-
+    const headerVersion = 1;
+    let data = 0n;
+    data |= BigInt(p.market_id & 65535) << 70n;
+    data |= BigInt(p.size_steps & 4294967295) << 38n;
+    data |= BigInt(p.price_ticks & 16777215) << 14n;
+    data |= BigInt(orderFlags & 255) << 6n;
+    data |= BigInt((headerVersion & 31) << 1);
     return data;
 }
 
-// Общий permit VerifyWitness — та же схема, что и update-leverage/
-// update-margin-mode/update-isolated-margin (подтверждена в доке дважды).
+function computeHeaderFlags(builderId, clientOrderId, ttlUnits, isErc1271 = false) {
+    let flags = isErc1271 ? V3_FLAG_PERMIT_ERC1271 : V3_FLAG_PERMIT;
+    if (builderId !== 0)      flags |= V3_FLAG_BUILDER;
+    if (clientOrderId !== 0n) flags |= V3_FLAG_CLIENT_ID;
+    if (ttlUnits !== 0)       flags |= V3_FLAG_TTL;
+    return flags;
+}
+
+function computeOrderHash(p) {
+    const orderData      = encodeOrderDataPacked(p);
+    const clientOrderId  = BigInt(p.client_order_id ?? '0');
+    const headerFlags    = computeHeaderFlags(p.builder_id ?? 0, clientOrderId, p.ttl_units ?? 0);
+
+    const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
+        ['bytes32', 'uint8', 'uint256', 'uint16', 'uint64', 'uint16'],
+        [ACTION_PLACE_ORDER_HASH, headerFlags, orderData, p.builder_id ?? 0, clientOrderId, p.ttl_units ?? 0]
+    );
+    return ethers.keccak256(encoded);
+}
+
+function computeCancelOrderHash(marketId, restingOrderId) {
+    const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
+        ['bytes32', 'uint256', 'uint256'],
+        [ACTION_CANCEL_ORDER_HASH, BigInt(marketId), BigInt(restingOrderId)]
+    );
+    return ethers.keccak256(encoded);
+}
+
+// Общий permit VerifyWitness — подтверждён трижды в доке (isolated-margin/
+// leverage/margin-mode) и совпадает 1-в-1 с официальным SDK.
 async function signVerifyWitness({ account, target, hash, deadline }) {
     const domain = await fetchEip712Domain();
 
+    // Точно как createPermitParams() в официальном SDK: БЕЗ блайндового +1,
+    // используем current_bitmap_index как есть (не всегда 0!). Раньше здесь
+    // было nonceAnchor = anchor+1, nonceBitmap = 0 всегда — расхождение с SDK.
+    const MAX_BITMAP_INDEX = 207;
     let nonceAnchor = 1, nonceBitmap = 0;
     try {
         const res = await fetch(`${RISEX_API.rest}/v1/nonce-state/${account}`);
         if (res.ok) {
             const raw = await res.json();
             const nd  = raw.data || raw;
-            nonceAnchor = Number(nd.nonce_anchor || 0) + 1;
-            // Если nonce_bitmap_index вернётся 208 (bitmap заполнен) — по доке
-            // нужно взять nonceAnchor+1 с bitmap=0. Тут не встречалось живьём,
-            // оставляю TODO вместо угадывания.
+            nonceAnchor = Number(nd.nonce_anchor || 0);
+            nonceBitmap = Number(nd.current_bitmap_index || 0);
+            if (nonceBitmap > MAX_BITMAP_INDEX) {
+                nonceAnchor += 1;
+                nonceBitmap = 0;
+            }
         }
     } catch (e) {
         console.warn('nonce-state error:', e.message);
@@ -640,44 +703,38 @@ async function signVerifyWitness({ account, target, hash, deadline }) {
     return { nonceAnchor, nonceBitmap, signature };
 }
 
-// orderType: 0=Market, 1=Limit (из OpenAPI-схемы orderservice_placeorder —
-// ⚠️ integration.md прозой утверждает ОБРАТНОЕ (0=Limit,1=Market)! Идём по
-// авто-сгенерированной OpenAPI-схеме как более достоверной, но это второе
-// место для проверки при живом тесте, если ордер исполнится не тем типом.
+// order_type: 0=Market, 1=Limit (OpenAPI, подтверждено бизнес-валидацией
+// сервера "market orders require FOK or IOC" — значит 0 распознаётся именно
+// как Market).
 const ORDER_TYPE = { MARKET: 0, LIMIT: 1 };
 const TIF         = { GTC: 0, GTT: 1, FOK: 2, IOC: 3 };
 
-async function signAndPlaceOrder({ marketId, side, humanSize, humanPrice, orderType = ORDER_TYPE.MARKET, timeInForce = TIF.GTC, postOnly = false, reduceOnly = false, stpMode = 0 }) {
+async function signAndPlaceOrder({ marketId, side, humanSize, humanPrice, orderType = ORDER_TYPE.MARKET, timeInForce = TIF.IOC, postOnly = false, reduceOnly = false, stpMode = 0 }) {
     if (!signer || !signerAddress) throw new Error('Signer not connected');
     if (!RISEX_CONTRACTS.router)   throw new Error('Router address not loaded (system/config)');
 
     const account  = riseAccountAddress || signerAddress;
     const target   = RISEX_CONTRACTS.router;
     const deadline = Math.floor(Date.now() / 1000) + 300;
-    const expiry   = timeInForce === TIF.GTT ? deadline : 0;
 
-    // toFixed(18), не String() — у мелких чисел (например, при $1 ордере на
-    // BTC ~64000 → размер ~0.0000156) String() может дать >18 знаков после
-    // запятой из-за особенностей представления float, а parseUnits(_, 18)
-    // принимает максимум 18.
-    const sizeWad  = ethers.parseUnits(Number(humanSize).toFixed(18),  18);
-    const priceWad = ethers.parseUnits(Number(humanPrice).toFixed(18), 18);
+    const sizeSteps  = toSizeSteps(humanSize, marketId);
+    // Market-ордера всегда price_ticks=0 (подтверждено SDK: marketBuy/marketSell
+    // всегда шлют 0 — лимитная цена не имеет смысла для рыночного ордера).
+    const priceTicks = orderType === ORDER_TYPE.MARKET ? 0 : toPriceTicks(humanPrice, marketId);
 
-    const encoded  = encodeOrderData({
-        marketId, sizeWad, priceWad, side, postOnly, reduceOnly, stpMode, orderType, timeInForce, expiry
-    });
-    const orderHash = ethers.keccak256(encoded);
+    const orderParams = {
+        market_id: Number(marketId), size_steps: sizeSteps, price_ticks: priceTicks,
+        side, post_only: postOnly, reduce_only: reduceOnly, stp_mode: stpMode,
+        order_type: orderType, time_in_force: timeInForce,
+        builder_id: 0, client_order_id: '0', ttl_units: 0,
+    };
+    const orderHash = computeOrderHash(orderParams);
 
     const { nonceAnchor, nonceBitmap, signature } =
         await signVerifyWitness({ account, target, hash: orderHash, deadline });
 
     const body = {
-        market_id:       Number(marketId),
-        size_steps:      toSizeSteps(humanSize, marketId),
-        price_ticks:     toPriceTicks(humanPrice, marketId),
-        side, order_type: orderType, time_in_force: timeInForce,
-        post_only: postOnly, reduce_only: reduceOnly, stp_mode: stpMode,
-        builder_id: 0, client_order_id: '0', ttl_units: 0,
+        ...orderParams,
         permit: {
             account, signer: signerAddress,
             nonce_anchor: String(nonceAnchor), nonce_bitmap_index: nonceBitmap,
@@ -700,7 +757,8 @@ async function signAndPlaceOrder({ marketId, side, humanSize, humanPrice, orderT
     return result;
 }
 
-async function signAndCancelOrder(marketId, orderId) {
+// ⚠️ Требует resting_order_id (из GET /v1/orders/open) — не «наш» client_order_id.
+async function signAndCancelOrder(marketId, restingOrderId) {
     if (!signer || !signerAddress) throw new Error('Signer not connected');
     if (!RISEX_CONTRACTS.router)   throw new Error('Router address not loaded (system/config)');
 
@@ -708,18 +766,14 @@ async function signAndCancelOrder(marketId, orderId) {
     const target   = RISEX_CONTRACTS.router;
     const deadline = Math.floor(Date.now() / 1000) + 300;
 
-    const cancelData = (BigInt(marketId) << 192n) | BigInt(orderId);
-    const packed      = ethers.zeroPadValue(ethers.toBeHex(cancelData), 32);
-    const cancelHash  = ethers.keccak256(
-        ethers.AbiCoder.defaultAbiCoder().encode(['bytes32'], [packed])
-    );
+    const cancelHash = computeCancelOrderHash(marketId, restingOrderId);
 
     const { nonceAnchor, nonceBitmap, signature } =
         await signVerifyWitness({ account, target, hash: cancelHash, deadline });
 
     const body = {
         market_id: Number(marketId),
-        order_id:  String(orderId),
+        order_id:  String(restingOrderId),
         permit: {
             account, signer: signerAddress,
             nonce_anchor: String(nonceAnchor), nonce_bitmap_index: nonceBitmap,
