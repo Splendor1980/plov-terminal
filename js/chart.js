@@ -132,31 +132,35 @@ function renderCandles() {
     const padTop = 6, padBottom = 4;
     const usableH = h - padTop - padBottom;
     const slot    = w / candles.length;
-    const bodyW   = Math.max(2, slot * 0.6);
+    const tickW   = Math.max(2, slot * 0.35);
 
     const yFor = (price) => padTop + usableH - ((price - min) / range) * usableH;
 
     candles.forEach((k, i) => {
         const x     = i * slot + slot / 2;
         const up    = k.close >= k.open;
-        const color = up ? getCssVar('--green-dim') : getCssVar('--red-dim');
+        const color = up ? getCssVar('--green') : getCssVar('--red');
 
         ctx.strokeStyle = color;
-        ctx.fillStyle   = color;
-        ctx.lineWidth   = 1;
+        ctx.lineWidth   = 1.4;
 
-        // Фитиль (high-low)
+        // Вертикальная линия high-low
         ctx.beginPath();
         ctx.moveTo(x, yFor(k.high));
         ctx.lineTo(x, yFor(k.low));
         ctx.stroke();
 
-        // Тело свечи (open-close)
-        const yOpen  = yFor(k.open);
-        const yClose = yFor(k.close);
-        const bodyTop    = Math.min(yOpen, yClose);
-        const bodyHeight = Math.max(1, Math.abs(yClose - yOpen));
-        ctx.fillRect(x - bodyW / 2, bodyTop, bodyW, bodyHeight);
+        // Тик open — слева
+        ctx.beginPath();
+        ctx.moveTo(x - tickW, yFor(k.open));
+        ctx.lineTo(x, yFor(k.open));
+        ctx.stroke();
+
+        // Тик close — справа
+        ctx.beginPath();
+        ctx.moveTo(x, yFor(k.close));
+        ctx.lineTo(x + tickW, yFor(k.close));
+        ctx.stroke();
     });
 
     const highEl = document.getElementById('chart-high');

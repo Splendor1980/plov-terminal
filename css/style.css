@@ -5,26 +5,26 @@
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-    --bg0: #080810;
-    --bg1: #0e0e1a;
-    --bg2: #141426;
-    --bg3: #1c1c32;
-    --bg4: #242440;
-    --border: #2a2a48;
-    --border2: #383860;
-    --text: #e8e8f8;
-    --text2: #a0a0c0;
-    --text3: #606080;
-    --green: #00e676;
-    --green-dim: #00a854;
-    --green-bg: rgba(0,230,118,0.08);
-    --red: #ff4d6d;
-    --red-dim: #c0392b;
-    --red-bg: rgba(255,77,109,0.08);
+    --bg0: #050503;
+    --bg1: #0a0a06;
+    --bg2: #0f0f0a;
+    --bg3: #17170f;
+    --bg4: #201f14;
+    --border: #2b2a1a;
+    --border2: #403e24;
+    --text: #ffb300;
+    --text2: #cc8f00;
+    --text3: #7a6218;
+    --green: #39ff6a;
+    --green-dim: #1fbf4a;
+    --green-bg: rgba(57,255,106,0.08);
+    --red: #ff4136;
+    --red-dim: #cc2820;
+    --red-bg: rgba(255,65,54,0.08);
     --orange: #ffab40;
-    --blue: #448aff;
+    --blue: #4fa8ff;
     --gold: #ffd740;
-    --accent: #7c4dff;
+    --accent: #ffb300;
     --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
 }
 
@@ -53,7 +53,7 @@ html, body {
     overflow: hidden;
     background: var(--bg0);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+    font-family: var(--font-mono), -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
     font-size: 13px;
 }
 
@@ -104,7 +104,7 @@ html, body {
 .btn-icon:hover { border-color: var(--border2); }
 
 .btn-auth {
-    background: var(--accent); color: #fff; border: none;
+    background: var(--accent); color: #000; border: none;
     padding: 5px 14px; border-radius: 6px; font-size: 12px;
     font-weight: 700; cursor: pointer; white-space: nowrap; transition: opacity 0.15s;
 }
@@ -213,7 +213,7 @@ html, body {
     font-size: 10px; padding: 2px 6px; border-radius: 3px; cursor: pointer;
     font-family: var(--font-mono);
 }
-.chart-tf-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.chart-tf-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
 .chart-tf-btn:hover { color: var(--text1); }
 .chart-labels {
     position: absolute; top: 4px; left: 8px; right: 8px;
@@ -244,7 +244,7 @@ html, body {
     color: var(--text2); border-radius: 4px; font-size: 11px; font-weight: 700;
     cursor: pointer; transition: all 0.15s;
 }
-.lev-btn.active, .lev-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.lev-btn.active, .lev-btn:hover { background: var(--accent); color: #000; border-color: var(--accent); }
 
 .amount-row {
     padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;
