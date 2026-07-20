@@ -1,16 +1,21 @@
 // ============================================================
-// js/chart.js — РЕАЛЬНЫЕ OHLCV-СВЕЧИ (canvas)
+// js/chart.js — ТИКОВАЯ ЛЕНТА (главная) + OHLC-контекст (второстепенный)
 // ============================================================
-// Данные — GET /v1/markets/id/{market_id}/trading-view-data
-// (developer.rise.trade/reference/marketservice_gettradingviewdatav2) —
-// официальный эндпоинт RISEx именно под графики, не самодельная
-// агрегация тиков. Всё так же 100% данные от RISEx, просто нормальные
-// свечи вместо тик-гистограммы.
+// Для секундного скальпинга минутный бар — устаревшая на 60 секунд
+// информация. Основной график теперь — реальные исполненные сделки
+// (WS channel: trades) без агрегации по времени вообще, гранулярность
+// ограничена только частотой реальных сделок на рынке.
+//
+// OHLC-бары (GET /v1/markets/id/{market_id}/trading-view-data,
+// developer.rise.trade/reference/marketservice_gettradingviewdatav2)
+// остаются как второстепенная полоса внизу — общий контекст "где цена
+// была последние 10-15 минут", не основной инструмент принятия решений.
 // ============================================================
 
 let candles          = [];      // [{time(ms), open, high, low, close, volume}]
 let chartTimeframe   = '1m';
 let chartRefreshTimer = null;
+let tickBuffer        = [];     // [{time(ms), price, side}]
 
 const CHART_TF_NS = {
     '1m':  60_000_000_000n,
@@ -21,7 +26,11 @@ const CHART_TF_NS = {
 const CHART_TF_MS = {
     '1m': 60_000, '5m': 300_000, '15m': 900_000, '1h': 3_600_000,
 };
-const CHART_CANDLE_COUNT = 80;
+const CHART_CANDLE_COUNT = 60;
+const TICK_WINDOW_MS     = 60_000; // окно тиковой ленты — последние 60 сек
+
+// Доля высоты canvas'а под тиковую ленту (главное) / OHLC-контекст (второстепенное)
+const TICK_AREA_RATIO = 0.75;
 
 function getChartCanvas() {
     const canvas = document.getElementById('chart-canvas');
@@ -39,6 +48,74 @@ function getChartCanvas() {
     return { canvas, ctx, w, h };
 }
 
+function getCssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
+}
+
+// ── Тиковая лента (главный график) ──────────────────────────
+// Вызывается из risex.js при каждой реальной исполненной сделке
+// (WS channel: trades) — не путать с updateLiveCandle(), которая
+// вызывается на каждое обновление цены (чаще, из ордербука).
+function pushChartTick(price, side) {
+    if (!price || price <= 0) return;
+    tickBuffer.push({ time: Date.now(), price, side });
+    const cutoff = Date.now() - TICK_WINDOW_MS;
+    while (tickBuffer.length && tickBuffer[0].time < cutoff) tickBuffer.shift();
+    renderChart();
+}
+window.pushChartTick = pushChartTick;
+
+function renderTickArea(ctx, w, tickH) {
+    const cutoff = Date.now() - TICK_WINDOW_MS;
+    const ticks  = tickBuffer.filter(t => t.time >= cutoff);
+    if (ticks.length < 2) {
+        ctx.fillStyle = getCssVar('--text3');
+        ctx.font = '10px monospace';
+        ctx.fillText('waiting for trades…', 6, tickH / 2);
+        return;
+    }
+
+    const prices = ticks.map(t => t.price);
+    const max    = Math.max(...prices);
+    const min    = Math.min(...prices);
+    const range  = (max - min) || (max * 0.0005) || 1;
+
+    const padTop = 4, padBottom = 4;
+    const usableH = tickH - padTop - padBottom;
+    const now     = Date.now();
+
+    const xFor = (t) => w - ((now - t) / TICK_WINDOW_MS) * w;
+    const yFor = (price) => padTop + usableH - ((price - min) / range) * usableH;
+
+    // Соединяющая линия (тонкая, полупрозрачная) — читаемость движения
+    ctx.strokeStyle = getCssVar('--text3');
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ticks.forEach((t, i) => {
+        const x = xFor(t.time), y = yFor(t.price);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Точки сделок — цвет по стороне агрессора
+    ticks.forEach(t => {
+        const x = xFor(t.time), y = yFor(t.price);
+        ctx.fillStyle = t.side === 'buy' ? getCssVar('--green') : getCssVar('--red');
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    const highEl = document.getElementById('chart-high');
+    const lowEl  = document.getElementById('chart-low');
+    if (highEl) highEl.textContent = 'H: ' + max.toFixed(1);
+    if (lowEl)  lowEl.textContent  = 'L: ' + min.toFixed(1);
+}
+
+// ── OHLC-контекст (второстепенная полоса) ───────────────────
+
 async function fetchCandles(marketId, tf) {
     const intervalNs = CHART_TF_NS[tf] || CHART_TF_NS['1m'];
     const nowNs       = BigInt(Date.now()) * 1_000_000n;
@@ -50,19 +127,14 @@ async function fetchCandles(marketId, tf) {
         const res = await fetch(url);
         if (!res.ok) { console.warn('fetchCandles: HTTP', res.status); return []; }
         const raw = await res.json();
-        console.log('📊 Raw candles response:', raw);
 
-        // Форма ответа не подтверждена железно — пробуем несколько вариантов
         let rows = raw.data ?? raw;
         if (rows && !Array.isArray(rows) && Array.isArray(rows.data))  rows = rows.data;
         if (rows && !Array.isArray(rows) && Array.isArray(rows.items)) rows = rows.items;
-        if (!Array.isArray(rows)) {
-            console.warn('fetchCandles: unexpected shape, no array found', raw);
-            return [];
-        }
+        if (!Array.isArray(rows)) return [];
 
         return rows.map(r => ({
-            time:   Number(BigInt(r.time) / 1_000_000n), // ns → ms
+            time:   Number(BigInt(r.time) / 1_000_000n),
             open:   parseFloat(r.open),
             high:   parseFloat(r.high),
             low:    parseFloat(r.low),
@@ -79,7 +151,7 @@ async function loadCandles() {
     if (typeof currentMarket === 'undefined') return;
     const rows = await fetchCandles(currentMarket, chartTimeframe);
     if (rows.length) candles = rows;
-    renderCandles();
+    renderChart();
 }
 
 function setChartTimeframe(tf) {
@@ -92,36 +164,31 @@ function setChartTimeframe(tf) {
 }
 window.setChartTimeframe = setChartTimeframe;
 
-// Живое обновление последней (текущей) свечи по каждому тику цены с WS —
-// не ждём следующего REST-запроса, чтобы график не "лагал" при скальпинге.
+// Живое обновление контекстной свечи по каждому апдейту цены (не только
+// по сделкам — ордербук обновляется чаще, контекст остаётся плавным).
 function updateLiveCandle(price) {
     if (!price || price <= 0 || !candles.length) return;
 
-    const tfMs      = CHART_TF_MS[chartTimeframe] || 60_000;
-    const bucketStart = Math.floor(Date.now() / tfMs) * tfMs;
-    const last       = candles[candles.length - 1];
+    const tfMs        = CHART_TF_MS[chartTimeframe] || 60_000;
+    const bucketStart  = Math.floor(Date.now() / tfMs) * tfMs;
+    const last         = candles[candles.length - 1];
 
     if (last.time === bucketStart) {
         last.high  = Math.max(last.high, price);
         last.low   = Math.min(last.low, price);
         last.close = price;
     } else if (bucketStart > last.time) {
-        // Новый бакет времени — открываем новую формирующуюся свечу
         candles.push({ time: bucketStart, open: last.close, high: price, low: price, close: price, volume: 0 });
         if (candles.length > CHART_CANDLE_COUNT) candles.shift();
     } else {
-        return; // тик из прошлого бакета — игнорируем
+        return;
     }
-    renderCandles();
+    renderChart();
 }
 window.updateLiveCandle = updateLiveCandle;
 
-function renderCandles() {
-    const c = getChartCanvas();
-    if (!c || !candles.length) return;
-    const { ctx, w, h } = c;
-
-    ctx.clearRect(0, 0, w, h);
+function renderOhlcArea(ctx, w, yOffset, ohlcH) {
+    if (!candles.length) return;
 
     const highs = candles.map(k => k.high);
     const lows  = candles.map(k => k.low);
@@ -129,61 +196,69 @@ function renderCandles() {
     const min   = Math.min(...lows);
     const range = (max - min) || 1;
 
-    const padTop = 6, padBottom = 4;
-    const usableH = h - padTop - padBottom;
-    const slot    = w / candles.length;
-    const tickW   = Math.max(2, slot * 0.35);
+    const slot  = w / candles.length;
+    const tickW = Math.max(1, slot * 0.35);
+    const yFor  = (price) => yOffset + ohlcH - ((price - min) / range) * ohlcH;
 
-    const yFor = (price) => padTop + usableH - ((price - min) / range) * usableH;
-
+    ctx.globalAlpha = 0.55; // визуально приглушённее тиковой ленты — второстепенный контекст
     candles.forEach((k, i) => {
         const x     = i * slot + slot / 2;
         const up    = k.close >= k.open;
-        const color = up ? getCssVar('--green') : getCssVar('--red');
+        ctx.strokeStyle = up ? getCssVar('--green-dim') : getCssVar('--red-dim');
+        ctx.lineWidth   = 1;
 
-        ctx.strokeStyle = color;
-        ctx.lineWidth   = 1.4;
-
-        // Вертикальная линия high-low
         ctx.beginPath();
         ctx.moveTo(x, yFor(k.high));
         ctx.lineTo(x, yFor(k.low));
         ctx.stroke();
 
-        // Тик open — слева
         ctx.beginPath();
         ctx.moveTo(x - tickW, yFor(k.open));
         ctx.lineTo(x, yFor(k.open));
         ctx.stroke();
 
-        // Тик close — справа
         ctx.beginPath();
         ctx.moveTo(x, yFor(k.close));
         ctx.lineTo(x + tickW, yFor(k.close));
         ctx.stroke();
     });
-
-    const highEl = document.getElementById('chart-high');
-    const lowEl  = document.getElementById('chart-low');
-    if (highEl) highEl.textContent = 'H: ' + max.toFixed(0);
-    if (lowEl)  lowEl.textContent  = 'L: ' + min.toFixed(0);
+    ctx.globalAlpha = 1;
 }
 
-function getCssVar(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
+// ── Общий рендер (оба региона) ───────────────────────────────
+function renderChart() {
+    const c = getChartCanvas();
+    if (!c) return;
+    const { ctx, w, h } = c;
+    ctx.clearRect(0, 0, w, h);
+
+    const tickH = h * TICK_AREA_RATIO;
+    const ohlcH = h - tickH - 2;
+
+    renderTickArea(ctx, w, tickH);
+
+    ctx.strokeStyle = getCssVar('--border');
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(0, tickH + 1);
+    ctx.lineTo(w, tickH + 1);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    renderOhlcArea(ctx, w, tickH + 3, ohlcH);
 }
+
+function renderCandles() { renderChart(); }
 
 // ── Инициализация ────────────────────────────────────────────
 function initChart() {
     loadCandles();
     if (chartRefreshTimer) clearInterval(chartRefreshTimer);
-    // Периодическая полная пересинхронизация с сервером (не только
-    // локальные live-обновления) — раз в 30 сек, как страховка от
-    // пропущенных WS-тиков/расхождений.
     chartRefreshTimer = setInterval(loadCandles, 30_000);
 
-    window.addEventListener('resize', () => renderCandles());
+    setInterval(renderChart, 1000); // тиковая лента скроллится даже без новых событий
+    window.addEventListener('resize', () => renderChart());
 }
 window.initChart = initChart;
 
-console.log('%cChart loaded', 'color:#00ff9d');
+console.log('%cChart loaded (tick-first)', 'color:#00ff9d');

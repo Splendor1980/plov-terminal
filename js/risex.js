@@ -545,6 +545,7 @@ function renderTrades(trades) {
                    ? 'buy' : 'sell';
 
         trackFlowTrade(side, price, size);
+        if (typeof pushChartTick === 'function') pushChartTick(price, side);
 
         const ts   = trade.timestamp || trade.created_at || trade.time
                   || trade.block_timestamp;
