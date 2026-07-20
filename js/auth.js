@@ -87,6 +87,7 @@ fbAuth.onAuthStateChanged(async (user) => {
 
         // Подписка
         if (typeof initSubscription === 'function') initSubscription(user.uid);
+        if (typeof updateTpSlPanel  === 'function') updateTpSlPanel();
 
     } else {
         isLoggedIn  = false;

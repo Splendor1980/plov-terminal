@@ -37,7 +37,8 @@ const RISEX_API = {
 
 let RISEX_CONTRACTS = {
     usdc: null, router: null, ordersManager: null,
-    perpsManager: null, authorization: null, collateral: null
+    perpsManager: null, authorization: null, collateral: null,
+    operatorHub: null,
 };
 
 // Используется как fallback, пока loadSystemConfig() не подтянет

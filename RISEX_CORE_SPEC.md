@@ -204,3 +204,43 @@ size, price, fee, timestamp`. **Без leverage и без per-trade PnL** — и
 сервер (`/v1/trade-history`) — источник правды, локальная запись только
 для мгновенного отклика сразу после клика (помечена `pending`, тут же
 перезаписывается настоящими данными).
+
+## 12. TP/SL (Take Profit / Stop Loss) — новая фича
+
+Два разных подписанта, важно не путать:
+
+**A) Approve budget (один раз, ОБЯЗАТЕЛЬНО перед первым TP/SL):**
+```
+POST /v1/auth/approve-single
+```
+Подписывает **АККАУНТ** (не delegate signer!) — `PermitSingle(address account,
+address operator, uint96 budget, uint32 allowanceExpiry, uint48 nonceAnchor,
+uint8 nonceBitmap)`. `operator` = `system/config → addresses.operator_hub`.
+`budget` — WAD (18 decimals), notional USD. `signature` — **hex**, не base64
+(подтверждено примером в доке: `"0x1234..."`).
+
+PLOV не хранит ключ account — используется `window.ethereum` (Rabby/MetaMask,
+тот же паттерн, что и оплата подписки), не delegate signer.
+
+**B) Place/Cancel TP/SL ордер (delegate signer, как обычные ордера):**
+```
+POST /v1/orders/tpsl         primaryType PlaceTpslOrder
+POST /v1/orders/tpsl/cancel  primaryType CancelTpslOrder
+GET  /v1/orders/tpsl?account=&market_id=
+```
+Enum-поля в JSON-теле — **строки** (`"BUY"/"SELL"`, `"TAKE_PROFIT"/"STOP_LOSS"`,
+`"MARKET"/"LIMIT"`, `"MARK_PRICE"/"LAST_TRADED_PRICE"`, `"GTC"/...`), а в самой
+EIP-712 подписи те же поля — **uint8** (числовое представление, предполагаем
+порядок объявления enum = значение: BUY=0, TAKE_PROFIT=0, MARKET=0,
+LAST_TRADED_PRICE=0 — НЕ подтверждено вживую, первое место для проверки).
+`size`/`stop_price`/`limit_price` — человекочитаемые decimal-строки (не
+steps/ticks, в отличие от обычных ордеров). `signature` — base64 (format:byte,
+как и обычный permit.signature).
+
+`size_percent_bps: 10000` = закрыть 100% позиции по триггеру (используем как
+дефолт для простоты UX — TP/SL закрывает всю позицию целиком).
+
+⚠️ Открытые вопросы: точное числовое значение enum'ов в подписи (см. выше),
+и не проверено, что происходит если approve-single budget истёк/недостаточен
+на момент срабатывания ордера (ошибка должна прийти от `/v1/orders/tpsl` при
+размещении, а не при исполнении — не проверяли).

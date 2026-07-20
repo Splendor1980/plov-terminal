@@ -241,6 +241,23 @@
             <button class="btn-close-pos" id="btn-close-pos" onclick="closePosition()" style="display:none">✕ Close position</button>
         </div>
 
+        <div class="section" id="tpsl-section">
+            <div class="section-title">🎯 TP / SL</div>
+            <div id="tpsl-not-enabled">
+                <p class="signer-hint">Разово разрешить RISEx исполнять твои TP/SL-ордера (подпись через Rabby/MetaMask — не delegate-ключ).</p>
+                <input type="number" id="tpsl-budget-input" placeholder="Бюджет USDC (напр. 100)" min="1" step="1" style="width:100%;margin-bottom:6px;">
+                <button class="btn-sm btn-green" onclick="handleApproveTpSlBudget()" id="btn-approve-tpsl" style="width:100%;">Enable TP/SL</button>
+            </div>
+            <div id="tpsl-enabled" style="display:none">
+                <div class="signer-input-row">
+                    <input type="number" id="tpsl-sl-input" placeholder="Stop Loss $" min="0" step="0.1">
+                    <input type="number" id="tpsl-tp-input" placeholder="Take Profit $" min="0" step="0.1">
+                </div>
+                <button class="btn-sm btn-green" onclick="handleSetTpSl()" id="btn-set-tpsl" style="width:100%;margin-top:6px;">Set TP/SL for position</button>
+                <div class="my-trades-list-inline" id="tpsl-orders-list" style="margin-top:8px;"></div>
+            </div>
+        </div>
+
         <div class="section">
             <div class="section-title" id="stats-title">📊 Statistics</div>
             <div class="pos-row"><span class="pos-label" id="stat-label-trades">Trades</span><span class="pos-val" id="stat-trades">0</span></div>
@@ -279,6 +296,7 @@
 <script src="js/risex.js"></script>
 <script src="js/risex-real-trading.js"></script>
 <script src="js/chart.js"></script>
+<script src="js/tpsl-ui.js"></script>
 <script src="js/trading.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/subscription.js"></script>

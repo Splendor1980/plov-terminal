@@ -28,6 +28,7 @@ async function loadSystemConfig() {
             if (addr.collateral_manager) RISEX_CONTRACTS.collateral  = addr.collateral_manager;
             if (addr.perps_manager)     RISEX_CONTRACTS.perpsManager  = addr.perps_manager;
             if (addr.auth)              RISEX_CONTRACTS.authorization = addr.auth;
+            if (addr.operator_hub)      RISEX_CONTRACTS.operatorHub   = addr.operator_hub;
         }
 
         // markets — список маркетов
@@ -653,14 +654,9 @@ function computeCancelOrderHash(marketId, restingOrderId) {
     return ethers.keccak256(encoded);
 }
 
-// Общий permit VerifyWitness — подтверждён трижды в доке (isolated-margin/
-// leverage/margin-mode) и совпадает 1-в-1 с официальным SDK.
-async function signVerifyWitness({ account, target, hash, deadline }) {
-    const domain = await fetchEip712Domain();
-
-    // Точно как createPermitParams() в официальном SDK: БЕЗ блайндового +1,
-    // используем current_bitmap_index как есть (не всегда 0!). Раньше здесь
-    // было nonceAnchor = anchor+1, nonceBitmap = 0 всегда — расхождение с SDK.
+// Общий helper для nonce-state — та же логика, что createPermitParams() в
+// SDK. Используется VerifyWitness-подписями (ордера) и PermitSingle (TP/SL budget).
+async function getNonceState(account) {
     const MAX_BITMAP_INDEX = 207;
     let nonceAnchor = 1, nonceBitmap = 0;
     try {
@@ -678,6 +674,14 @@ async function signVerifyWitness({ account, target, hash, deadline }) {
     } catch (e) {
         console.warn('nonce-state error:', e.message);
     }
+    return { nonceAnchor, nonceBitmap };
+}
+
+// Общий permit VerifyWitness — подтверждён трижды в доке (isolated-margin/
+// leverage/margin-mode) и совпадает 1-в-1 с официальным SDK.
+async function signVerifyWitness({ account, target, hash, deadline }) {
+    const domain = await fetchEip712Domain();
+    const { nonceAnchor, nonceBitmap } = await getNonceState(account);
 
     const VERIFY_WITNESS_TYPES = {
         VerifyWitness: [
@@ -796,6 +800,195 @@ async function signAndCancelOrder(marketId, orderId, restingOrderId) {
 }
 
 window.signAndPlaceOrder  = signAndPlaceOrder;
+
+// ============================================================
+// ── TP/SL (Take Profit / Stop Loss) ──────────────────────────
+// ============================================================
+// См. RISEX_CORE_SPEC.md §12. Два разных подписанта:
+//  - Approve budget (одноразово) — подписывает АККАУНТ (Rabby/MetaMask),
+//    не delegate signer — PLOV не может это подписать сам, как и
+//    register-signer в своё время.
+//  - Place/Cancel TP/SL ордер — подписывает delegate signer (как обычные
+//    ордера), в схеме прямо есть поле signer.
+// ============================================================
+
+const TPSL_SIDE        = { BUY: 'BUY', SELL: 'SELL' };
+const TPSL_STOP_TYPE    = { TAKE_PROFIT: 0, STOP_LOSS: 1, NONE: 2 };
+const TPSL_ORDER_TYPE   = { MARKET: 'MARKET', LIMIT: 'LIMIT' };
+const TPSL_PRICE_OPTION = { LAST_TRADED_PRICE: 0, MARK_PRICE: 1, NONE: 2 };
+const TPSL_TIF          = { GTC: 'GTC', GTT: 'GTT', FOK: 'FOK', IOC: 'IOC' };
+
+// ── Approve budget (один раз, через Rabby/MetaMask) ─────────
+async function approveTpSlBudget(budgetUsd, expiryDays = 365) {
+    if (!window.ethereum) throw new Error('Кошелёк (MetaMask/Rabby) не найден в браузере');
+    if (!RISEX_CONTRACTS.operatorHub) throw new Error('operator_hub не загружен (system/config)');
+
+    const account = riseAccountAddress || signerAddress;
+
+    const browserProvider = new ethers.BrowserProvider(window.ethereum);
+    await browserProvider.send('eth_requestAccounts', []);
+    const accountSigner = await browserProvider.getSigner();
+    const realAccount   = await accountSigner.getAddress();
+    if (realAccount.toLowerCase() !== account.toLowerCase()) {
+        throw new Error(`Кошелёк в браузере (${realAccount.slice(0,8)}...) не совпадает с account (${account.slice(0,8)}...). Переключи аккаунт в Rabby.`);
+    }
+
+    const domain = await fetchEip712Domain();
+    const { nonceAnchor, nonceBitmap } = await getNonceState(account);
+
+    const budgetWad = ethers.parseUnits(String(budgetUsd), 18);
+    const allowanceExpiry = Math.floor(Date.now() / 1000) + expiryDays * 24 * 60 * 60;
+
+    const PERMIT_SINGLE_TYPES = {
+        PermitSingle: [
+            { name: 'account',          type: 'address' },
+            { name: 'operator',         type: 'address' },
+            { name: 'budget',           type: 'uint96'  },
+            { name: 'allowanceExpiry',  type: 'uint32'  },
+            { name: 'nonceAnchor',      type: 'uint48'  },
+            { name: 'nonceBitmap',      type: 'uint8'   },
+        ]
+    };
+
+    const signature = fixSignatureV(
+        await accountSigner.signTypedData(domain, PERMIT_SINGLE_TYPES, {
+            account, operator: RISEX_CONTRACTS.operatorHub,
+            budget: budgetWad, allowanceExpiry, nonceAnchor, nonceBitmap,
+        })
+    );
+
+    const body = {
+        account, operator: RISEX_CONTRACTS.operatorHub,
+        budget: budgetWad.toString(),
+        allowance_expiry: allowanceExpiry,
+        nonce_anchor: String(nonceAnchor), nonce_bitmap_index: nonceBitmap,
+        signature, // hex, НЕ base64 (подтверждено примером в доке: "0x1234...")
+    };
+    console.log('approve-single body:', JSON.stringify(body));
+
+    const res = await fetch(`${RISEX_API.rest}/v1/auth/approve-single`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const result = await res.json().catch(() => ({}));
+    console.log('approve-single response:', res.status, result);
+    if (!res.ok) throw new Error(result.error?.message || result.message || `API error ${res.status}`);
+    return result;
+}
+
+// ── Разместить TP или SL ордер (delegate signer) ────────────
+async function signAndPlaceTpSlOrder({ marketId, side, humanSize, stopType, stopPrice, limitPrice = '0', orderType = TPSL_ORDER_TYPE.MARKET, stopPriceOption = TPSL_PRICE_OPTION.MARK_PRICE, tif = TPSL_TIF.GTC, sizePercentBps = 10000 }) {
+    if (!signer || !signerAddress) throw new Error('Signer not connected');
+
+    const account  = riseAccountAddress || signerAddress;
+    const deadline = Math.floor(Date.now() / 1000) + 300;
+    const domain   = await fetchEip712Domain();
+
+    const sideStr     = side === 0 ? TPSL_SIDE.BUY : TPSL_SIDE.SELL;
+    const sideNum     = side; // 0=Buy,1=Sell — как и в обычных ордерах
+    const orderTypeNum = orderType === TPSL_ORDER_TYPE.LIMIT ? 1 : 0;
+    const tifNum        = { GTC: 0, GTT: 1, FOK: 2, IOC: 3 }[tif];
+
+    const PLACE_TPSL_TYPES = {
+        PlaceTpslOrder: [
+            { name: 'account',         type: 'address' },
+            { name: 'marketId',        type: 'uint64'  },
+            { name: 'side',            type: 'uint8'   },
+            { name: 'size',            type: 'string'  },
+            { name: 'stopType',        type: 'uint8'   },
+            { name: 'stopPrice',       type: 'string'  },
+            { name: 'limitPrice',      type: 'string'  },
+            { name: 'orderType',       type: 'uint8'   },
+            { name: 'stopPriceOption', type: 'uint8'   },
+            { name: 'tif',             type: 'uint8'   },
+            { name: 'deadline',        type: 'uint32'  },
+            { name: 'sizePercentBps',  type: 'uint32'  },
+        ]
+    };
+
+    const sizeStr      = String(humanSize);
+    const stopPriceStr = String(stopPrice);
+    const limitPriceStr = String(limitPrice);
+
+    const signature = fixSignatureV(
+        await signer.signTypedData(domain, PLACE_TPSL_TYPES, {
+            account, marketId: Number(marketId), side: sideNum, size: sizeStr,
+            stopType, stopPrice: stopPriceStr, limitPrice: limitPriceStr,
+            orderType: orderTypeNum, stopPriceOption, tif: tifNum,
+            deadline, sizePercentBps,
+        })
+    );
+
+    const body = {
+        account, market_id: String(marketId), side: sideStr, size: sizeStr,
+        stop_type: stopType === TPSL_STOP_TYPE.TAKE_PROFIT ? 'TAKE_PROFIT' : 'STOP_LOSS',
+        order_type: orderType, stop_price: stopPriceStr, limit_price: limitPriceStr,
+        stop_price_option: stopPriceOption === TPSL_PRICE_OPTION.MARK_PRICE ? 'MARK_PRICE' : 'LAST_TRADED_PRICE',
+        tif, signer: signerAddress,
+        signature: hexSigToBase64(signature), // format:byte, как и permit.signature ордеров
+        deadline, size_percent_bps: sizePercentBps,
+    };
+    console.log('place-tpsl body:', JSON.stringify(body));
+
+    const res = await fetch(`${RISEX_API.rest}/v1/orders/tpsl`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const result = await res.json().catch(() => ({}));
+    console.log('place-tpsl response:', res.status, result);
+    if (!res.ok) throw new Error(result.error?.message || result.message || `API error ${res.status}`);
+    return result;
+}
+
+async function fetchTpSlOrders() {
+    const account = riseAccountAddress || signerAddress;
+    if (!account) return [];
+    try {
+        const res = await fetch(`${RISEX_API.rest}/v1/orders/tpsl?account=${account}&market_id=${currentMarket}`);
+        if (!res.ok) return [];
+        const raw  = await res.json();
+        const rows = raw.data ?? raw;
+        const orders = Array.isArray(rows) ? rows : (Array.isArray(rows?.orders) ? rows.orders : []);
+        return orders;
+    } catch (e) {
+        console.warn('fetchTpSlOrders error:', e);
+        return [];
+    }
+}
+
+async function cancelTpSlOrder(orderId) {
+    if (!signer || !signerAddress) throw new Error('Signer not connected');
+    const account  = riseAccountAddress || signerAddress;
+    const deadline = Math.floor(Date.now() / 1000) + 300;
+    const domain   = await fetchEip712Domain();
+
+    const CANCEL_TPSL_TYPES = {
+        CancelTpslOrder: [
+            { name: 'account',  type: 'address' },
+            { name: 'orderId',  type: 'string'  },
+            { name: 'deadline', type: 'uint32'  },
+        ]
+    };
+    const signature = fixSignatureV(
+        await signer.signTypedData(domain, CANCEL_TPSL_TYPES, { account, orderId: String(orderId), deadline })
+    );
+
+    const body = { account, order_id: String(orderId), deadline, signer: signerAddress, signature: hexSigToBase64(signature) };
+    const res = await fetch(`${RISEX_API.rest}/v1/orders/tpsl/cancel`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(result.error?.message || result.message || `API error ${res.status}`);
+    return result;
+}
+
+window.approveTpSlBudget    = approveTpSlBudget;
+window.signAndPlaceTpSlOrder = signAndPlaceTpSlOrder;
+window.fetchTpSlOrders      = fetchTpSlOrders;
+window.cancelTpSlOrder      = cancelTpSlOrder;
+window.TPSL_STOP_TYPE       = TPSL_STOP_TYPE;
+window.TPSL_PRICE_OPTION    = TPSL_PRICE_OPTION;
 window.signAndCancelOrder = signAndCancelOrder;
 window.ORDER_TYPE         = ORDER_TYPE;
 window.TIF                = TIF;
