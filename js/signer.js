@@ -169,7 +169,9 @@ function saveSignerKey() {
 
         updateSignerUI();
         addToLog(`${t('signer_connected_msg')} ${signerAddress.slice(0,8)}...${signerAddress.slice(-6)}`, 'success');
-        if (riseAccountAddress !== signerAddress) {
+        if (!acc) {
+            addToLog('⚠️ Account address не указан — считаем account = signer. Если это делегат-ключ, а не self-authorized — заполни поле Account address!', 'warning');
+        } else if (riseAccountAddress !== signerAddress) {
             addToLog(`ℹ️ Account: ${riseAccountAddress.slice(0,8)}...${riseAccountAddress.slice(-6)}`, 'meta');
         }
 

@@ -818,12 +818,50 @@ const TPSL_ORDER_TYPE   = { MARKET: 'MARKET', LIMIT: 'LIMIT' };
 const TPSL_PRICE_OPTION = { LAST_TRADED_PRICE: 0, MARK_PRICE: 1, NONE: 2 };
 const TPSL_TIF          = { GTC: 'GTC', GTT: 'GTT', FOK: 'FOK', IOC: 'IOC' };
 
+// Переключить/добавить сеть Rise Mainnet в инжектнутом кошельке (Rabby/
+// MetaMask) перед подписью — иначе кошелёк отклоняет запрос с ошибкой
+// "chainId should be same as current chainId", если у пользователя открыта
+// другая сеть.
+async function ensureRiseChainInWallet() {
+    if (!window.ethereum) return;
+    const targetHex = '0x' + RISE_CHAIN.chainId.toString(16);
+    try {
+        const current = await window.ethereum.request({ method: 'eth_chainId' });
+        if (current?.toLowerCase() === targetHex.toLowerCase()) return;
+    } catch (e) { /* продолжаем, попробуем switch */ }
+
+    try {
+        await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: targetHex }],
+        });
+    } catch (switchError) {
+        if (switchError.code === 4902) {
+            await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                    chainId: targetHex,
+                    chainName: 'Rise Mainnet',
+                    rpcUrls: ['https://rpc.risechain.com'],
+                    nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                    blockExplorerUrls: [RISE_CHAIN.explorer],
+                }],
+            });
+        } else {
+            throw switchError;
+        }
+    }
+}
+window.ensureRiseChainInWallet = ensureRiseChainInWallet;
+
 // ── Approve budget (один раз, через Rabby/MetaMask) ─────────
 async function approveTpSlBudget(budgetUsd, expiryDays = 365) {
     if (!window.ethereum) throw new Error('Кошелёк (MetaMask/Rabby) не найден в браузере');
     if (!RISEX_CONTRACTS.operatorHub) throw new Error('operator_hub не загружен (system/config)');
 
     const account = riseAccountAddress || signerAddress;
+
+    await ensureRiseChainInWallet();
 
     const browserProvider = new ethers.BrowserProvider(window.ethereum);
     await browserProvider.send('eth_requestAccounts', []);

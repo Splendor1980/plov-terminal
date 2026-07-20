@@ -297,6 +297,7 @@ async function sendUSDC(tokenAddress, toAddress, amount) {
     // Оплата подписки — это перевод с ОСНОВНОГО кошелька пользователя
     // (через расширение в браузере), а НЕ с Signer Key — у делегат-ключа
     // по дизайну нет ни средств, ни возможности их выводить.
+    if (typeof ensureRiseChainInWallet === 'function') await ensureRiseChainInWallet();
     const browserProvider = new ethers.BrowserProvider(window.ethereum);
     await browserProvider.send('eth_requestAccounts', []);
     const payerSigner = await browserProvider.getSigner();
