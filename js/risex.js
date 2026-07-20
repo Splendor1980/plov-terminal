@@ -491,6 +491,41 @@ function renderOrderBook(data) {
     }
 }
 
+// ── Order Flow Imbalance (30-сек скользящее окно) ───────────
+let _flowTrades = []; // [{time, side, notional}]
+const FLOW_WINDOW_MS = 30_000;
+
+function trackFlowTrade(side, price, size) {
+    const notional = price * size;
+    _flowTrades.push({ time: Date.now(), side, notional });
+    const cutoff = Date.now() - FLOW_WINDOW_MS;
+    while (_flowTrades.length && _flowTrades[0].time < cutoff) _flowTrades.shift();
+    updateFlowIndicator();
+}
+
+function updateFlowIndicator() {
+    const buyBar   = document.getElementById('flow-buy-bar');
+    const sellBar  = document.getElementById('flow-sell-bar');
+    const labelEl  = document.getElementById('flow-label');
+    if (!buyBar || !sellBar || !labelEl) return;
+
+    const cutoff = Date.now() - FLOW_WINDOW_MS;
+    const recent = _flowTrades.filter(t => t.time >= cutoff);
+    _flowTrades = recent;
+
+    let buyVol = 0, sellVol = 0;
+    recent.forEach(t => { if (t.side === 'buy') buyVol += t.notional; else sellVol += t.notional; });
+
+    const total = buyVol + sellVol;
+    const buyPct  = total > 0 ? (buyVol  / total) * 100 : 50;
+    const sellPct = 100 - buyPct;
+
+    buyBar.style.width  = buyPct.toFixed(0)  + '%';
+    sellBar.style.width = sellPct.toFixed(0) + '%';
+    labelEl.textContent = `${buyPct.toFixed(0)}% / ${sellPct.toFixed(0)}%`;
+}
+setInterval(updateFlowIndicator, 3000); // декей окна даже без новых сделок
+
 function renderTrades(trades) {
     if (!trades || !trades.length) return;
 
@@ -508,6 +543,8 @@ function renderTrades(trades) {
 
         const side = (trade.taker_side === 0 || trade.side === 0 || trade.side === 'buy')
                    ? 'buy' : 'sell';
+
+        trackFlowTrade(side, price, size);
 
         const ts   = trade.timestamp || trade.created_at || trade.time
                   || trade.block_timestamp;

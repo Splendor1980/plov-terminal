@@ -85,6 +85,13 @@
                 <span class="price-change" id="price-change">+0.00%</span>
                 <span class="price-funding" id="funding-rate">FR: ---</span>
             </div>
+            <div class="flow-indicator" id="flow-indicator" title="Order flow (buy vs sell aggressor volume, 30s)">
+                <div class="flow-bar">
+                    <div class="flow-buy" id="flow-buy-bar" style="width:50%"></div>
+                    <div class="flow-sell" id="flow-sell-bar" style="width:50%"></div>
+                </div>
+                <span class="flow-label" id="flow-label">50% / 50%</span>
+            </div>
         </div>
 
         <div class="chart-wrap">
@@ -311,6 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initSecurity();
     initUI();
     initChart();
+    if (typeof initHotkeys === 'function') initHotkeys();
     showWelcomeBubble();
 
     // Публичные рыночные данные — не требуют логина

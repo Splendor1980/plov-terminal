@@ -323,6 +323,57 @@ async function loadStats() {
     } catch {}
 }
 
+// ── Клавиатурный воркфлоу ────────────────────────────────────
+// B/S/Esc были только текстовой подсказкой — реального обработчика не было
+// вообще. Теперь: B/S/Esc + 1-5 плечо + Q/W/E/R размер + C закрыть + F
+// перевернуть позицию (закрыть и тут же открыть в другую сторону).
+
+const HOTKEY_LEVERAGE = { '1': 1, '2': 2, '3': 5, '4': 10, '5': 25 };
+const HOTKEY_PCT       = { 'q': 25, 'w': 50, 'e': 75, 'r': 100 };
+
+async function flipPosition() {
+    if (!position || !position.size || position.size <= 0) {
+        addToLog('⚠️ Нет позиции для переворота', 'warning');
+        return;
+    }
+    const oldMargin   = position.margin;
+    const oldLeverage = position.leverage;
+    const flipSide    = position.side === 'long' ? 'short' : 'long';
+
+    addToLog('🔄 Flipping position...', 'pending');
+    const closed = await closePosition();
+    if (!closed) return;
+
+    await new Promise(r => setTimeout(r, 800)); // дать бирже/балансу обновиться
+    if (typeof placeOrder === 'function' && currentUser) {
+        await placeOrder(flipSide, oldMargin, oldLeverage, currentUser.uid, 'market');
+    }
+}
+
+function initHotkeys() {
+    document.addEventListener('keydown', (e) => {
+        const tag = document.activeElement?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+        const key = e.key.toLowerCase();
+
+        if (key === 'b') { e.preventDefault(); handleBuyClick(); return; }
+        if (key === 's') { e.preventDefault(); handleSellClick(); return; }
+        if (key === 'escape') {
+            e.preventDefault();
+            const inp = document.getElementById('amount-input');
+            if (inp) inp.value = '';
+            return;
+        }
+        if (key === 'c') { e.preventDefault(); if (typeof closePosition === 'function') closePosition(); return; }
+        if (key === 'f') { e.preventDefault(); flipPosition(); return; }
+
+        if (HOTKEY_LEVERAGE[key] !== undefined) { e.preventDefault(); setLeverage(HOTKEY_LEVERAGE[key]); return; }
+        if (HOTKEY_PCT[key]      !== undefined) { e.preventDefault(); setPct(HOTKEY_PCT[key]);           return; }
+    });
+}
+
 window.handleBuyClick   = handleBuyClick;
 window.handleSellClick  = handleSellClick;
 window.setPct           = setPct;
@@ -335,4 +386,6 @@ window.loadStats        = loadStats;
 window.loadMyTrades     = loadMyTrades;
 window.renderMyTrades   = renderMyTrades;
 window.addMyTrade       = addMyTrade;
+window.flipPosition     = flipPosition;
+window.initHotkeys      = initHotkeys;
 console.log('%cTrading loaded', 'color:#00ff9d');
