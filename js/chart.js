@@ -29,8 +29,9 @@ const CHART_TF_MS = {
 const CHART_CANDLE_COUNT = 60;
 const TICK_WINDOW_MS     = 60_000; // окно тиковой ленты — последние 60 сек
 
-// Доля высоты canvas'а под тиковую ленту (главное) / OHLC-контекст (второстепенное)
-const TICK_AREA_RATIO = 0.75;
+// Доля высоты canvas'а: тиковая лента (главное) / объёмные бары / OHLC-контекст
+const TICK_AREA_RATIO   = 0.55;
+const VOLUME_AREA_RATIO = 0.20;
 
 function getChartCanvas() {
     const canvas = document.getElementById('chart-canvas');
@@ -56,9 +57,9 @@ function getCssVar(name) {
 // Вызывается из risex.js при каждой реальной исполненной сделке
 // (WS channel: trades) — не путать с updateLiveCandle(), которая
 // вызывается на каждое обновление цены (чаще, из ордербука).
-function pushChartTick(price, side) {
+function pushChartTick(price, side, size = 0) {
     if (!price || price <= 0) return;
-    tickBuffer.push({ time: Date.now(), price, side });
+    tickBuffer.push({ time: Date.now(), price, side, size });
     const cutoff = Date.now() - TICK_WINDOW_MS;
     while (tickBuffer.length && tickBuffer[0].time < cutoff) tickBuffer.shift();
     renderChart();
@@ -87,10 +88,10 @@ function renderTickArea(ctx, w, tickH) {
     const xFor = (t) => w - ((now - t) / TICK_WINDOW_MS) * w;
     const yFor = (price) => padTop + usableH - ((price - min) / range) * usableH;
 
-    // Соединяющая линия (тонкая, полупрозрачная) — читаемость движения
-    ctx.strokeStyle = getCssVar('--text3');
-    ctx.globalAlpha = 0.5;
-    ctx.lineWidth   = 1;
+    // Соединяющая линия — ярче и толще, чтобы не сливаться с чёрным фоном
+    ctx.strokeStyle = getCssVar('--text2');
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth   = 1.5;
     ctx.beginPath();
     ticks.forEach((t, i) => {
         const x = xFor(t.time), y = yFor(t.price);
@@ -112,6 +113,27 @@ function renderTickArea(ctx, w, tickH) {
     const lowEl  = document.getElementById('chart-low');
     if (highEl) highEl.textContent = 'H: ' + max.toFixed(1);
     if (lowEl)  lowEl.textContent  = 'L: ' + min.toFixed(1);
+}
+
+// ── Объёмные бары (старый добрый вид: сплошные зелёно-красные столбики) ──
+// В отличие от точек в тиковой ленте, тут высота = размер сделки — крупный
+// принт виден сразу, а не сливается с мелкими сделками.
+function renderVolumeBars(ctx, w, yOffset, volH) {
+    const cutoff = Date.now() - TICK_WINDOW_MS;
+    const ticks  = tickBuffer.filter(t => t.time >= cutoff && t.size > 0);
+    if (!ticks.length) return;
+
+    const maxSize = Math.max(...ticks.map(t => t.size)) || 1;
+    const now     = Date.now();
+    const xFor    = (t) => w - ((now - t) / TICK_WINDOW_MS) * w;
+    const barW    = Math.max(2, w / 200);
+
+    ticks.forEach(t => {
+        const x = xFor(t.time);
+        const barH = Math.max(1, (t.size / maxSize) * volH);
+        ctx.fillStyle = t.side === 'buy' ? getCssVar('--green') : getCssVar('--red');
+        ctx.fillRect(x - barW / 2, yOffset + volH - barH, barW, barH);
+    });
 }
 
 // ── OHLC-контекст (второстепенная полоса) ───────────────────
@@ -232,8 +254,9 @@ function renderChart() {
     const { ctx, w, h } = c;
     ctx.clearRect(0, 0, w, h);
 
-    const tickH = h * TICK_AREA_RATIO;
-    const ohlcH = h - tickH - 2;
+    const tickH   = h * TICK_AREA_RATIO;
+    const volH    = h * VOLUME_AREA_RATIO;
+    const ohlcH   = h - tickH - volH - 4;
 
     renderTickArea(ctx, w, tickH);
 
@@ -245,7 +268,17 @@ function renderChart() {
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    renderOhlcArea(ctx, w, tickH + 3, ohlcH);
+    renderVolumeBars(ctx, w, tickH + 2, volH);
+
+    ctx.strokeStyle = getCssVar('--border');
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(0, tickH + volH + 3);
+    ctx.lineTo(w, tickH + volH + 3);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    renderOhlcArea(ctx, w, tickH + volH + 5, ohlcH);
 }
 
 function renderCandles() { renderChart(); }
