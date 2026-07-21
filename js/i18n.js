@@ -95,7 +95,7 @@ const LANGUAGES = {
         signer_reg:          '🔐 Регистрируем кошелёк в RISEx...',
         signer_ok:           '✅ Кошелёк зарегистрирован в RISEx',
         ws_connected:        '📡 WebSocket подключён',
-        hotkeys_hint:        '💡 B/S = Long/Short, 1-5 = плечо, Q/W/E/R = 25/50/75/100%, C = закрыть, F = перевернуть',
+        hotkeys_hint_html:   '<kbd>B</kbd> Long &nbsp; <kbd>S</kbd> Short &nbsp; <kbd>1-5</kbd> плечо &nbsp; <kbd>Q W E R</kbd> 25/50/75/100% &nbsp; <kbd>C</kbd> закрыть &nbsp; <kbd>F</kbd> перевернуть &nbsp; <kbd>Esc</kbd> сброс',
         order_pending:       '🚀 Размещаем ордер...',
         order_success:       '✅ Позиция открыта!',
         order_error:         '❌ Ошибка ордера:',
@@ -135,6 +135,25 @@ const LANGUAGES = {
         bubble_step4:        '4. Вернись в ПЛОВ — всё готово',
         bubble_sim_note:     'Сейчас активна симуляция на реальных ценах RISEx.',
         new_device_warning:  '⚠️ Вход с нового устройства — проверьте настройки безопасности',
+        // Signer Key
+        signer_hint_full:    'Не используйте ключ основного кошелька (MetaMask/Rabby)! Создайте отдельный API-кошелёк: rise.trade → API → оставьте поле Address пустым → Generate → Authorize.',
+        signer_key_ph:       '0x... (приватный ключ API-кошелька)',
+        signer_account_ph:   'Account address (если отличается от API-кошелька, необязательно)',
+        signer_account_label: 'account:',
+        show_hide:           'Показать/скрыть',
+        // TP/SL
+        tpsl_hint:           'Разово разрешить RISEx исполнять твои TP/SL-ордера (подпись через Rabby/MetaMask — не delegate-ключ).',
+        tpsl_budget_ph:      'Бюджет USDC (напр. 100)',
+        tpsl_enable_btn:     'Enable TP/SL',
+        tpsl_sl_ph:          'Stop Loss $',
+        tpsl_tp_ph:          'Take Profit $',
+        tpsl_set_btn:        'Set TP/SL for position',
+        tpsl_no_active:      'Нет активных TP/SL',
+        // Списки
+        no_trades_yet:       'Сделок пока нет',
+        no_open_orders:      'Нет открытых ордеров',
+        col_filled:          'Заполнено',
+        tab_orders:          '📑 Ордера',
     },
 
     en: {
@@ -220,7 +239,7 @@ const LANGUAGES = {
         signer_reg:          '🔐 Registering wallet in RISEx...',
         signer_ok:           '✅ Wallet registered in RISEx',
         ws_connected:        '📡 WebSocket connected',
-        hotkeys_hint:        '💡 B/S = Long/Short, 1-5 = leverage, Q/W/E/R = 25/50/75/100%, C = close, F = flip',
+        hotkeys_hint_html:   '<kbd>B</kbd> Long &nbsp; <kbd>S</kbd> Short &nbsp; <kbd>1-5</kbd> leverage &nbsp; <kbd>Q W E R</kbd> 25/50/75/100% &nbsp; <kbd>C</kbd> close &nbsp; <kbd>F</kbd> flip &nbsp; <kbd>Esc</kbd> reset',
         order_pending:       '🚀 Placing order...',
         order_success:       '✅ Position opened!',
         order_error:         '❌ Order error:',
@@ -260,6 +279,25 @@ const LANGUAGES = {
         bubble_step4:        '4. Come back to PLOV — ready to trade',
         bubble_sim_note:     'Simulation mode is active — using real RISEx prices.',
         new_device_warning:  '⚠️ New device detected — check security settings',
+        // Signer Key
+        signer_hint_full:    "Don't use your main wallet's key (MetaMask/Rabby)! Create a separate API wallet: rise.trade → API → leave Address empty → Generate → Authorize.",
+        signer_key_ph:       '0x... (API wallet private key)',
+        signer_account_ph:   'Account address (if different from API wallet, optional)',
+        signer_account_label: 'account:',
+        show_hide:           'Show/hide',
+        // TP/SL
+        tpsl_hint:           'One-time authorization for RISEx to execute your TP/SL orders (signed via Rabby/MetaMask — not the delegate key).',
+        tpsl_budget_ph:      'Budget USDC (e.g. 100)',
+        tpsl_enable_btn:     'Enable TP/SL',
+        tpsl_sl_ph:          'Stop Loss $',
+        tpsl_tp_ph:          'Take Profit $',
+        tpsl_set_btn:        'Set TP/SL for position',
+        tpsl_no_active:      'No active TP/SL',
+        // Lists
+        no_trades_yet:       'No trades yet',
+        no_open_orders:      'No open orders',
+        col_filled:          'Filled',
+        tab_orders:          '📑 Orders',
     },
 
     zh: {
@@ -345,7 +383,7 @@ const LANGUAGES = {
         signer_reg:          '🔐 在 RISEx 注册钱包...',
         signer_ok:           '✅ 钱包已在 RISEx 注册',
         ws_connected:        '📡 WebSocket 已连接',
-        hotkeys_hint:        '💡 B/S = 做多/做空, 1-5 = 杠杆, Q/W/E/R = 25/50/75/100%, C = 平仓, F = 反手',
+        hotkeys_hint_html:   '<kbd>B</kbd> 做多 &nbsp; <kbd>S</kbd> 做空 &nbsp; <kbd>1-5</kbd> 杠杆 &nbsp; <kbd>Q W E R</kbd> 25/50/75/100% &nbsp; <kbd>C</kbd> 平仓 &nbsp; <kbd>F</kbd> 反手 &nbsp; <kbd>Esc</kbd> 重置',
         order_pending:       '🚀 下单中...',
         order_success:       '✅ 持仓已开！',
         order_error:         '❌ 订单错误:',
@@ -385,6 +423,25 @@ const LANGUAGES = {
         bubble_step4:        '4. 返回 ПЛОВ — 准备就绪',
         bubble_sim_note:     '当前为模拟模式 — 使用真实 RISEx 价格。',
         new_device_warning:  '⚠️ 检测到新设备 — 请检查安全设置',
+        // Signer Key
+        signer_hint_full:    '不要使用主钱包的私钥（MetaMask/Rabby）！请创建单独的 API 钱包：rise.trade → API → 地址栏留空 → Generate → Authorize。',
+        signer_key_ph:       '0x...（API 钱包私钥）',
+        signer_account_ph:   '账户地址（如与 API 钱包不同，可选）',
+        signer_account_label: '账户:',
+        show_hide:           '显示/隐藏',
+        // TP/SL
+        tpsl_hint:           '一次性授权 RISEx 执行您的止盈止损订单（通过 Rabby/MetaMask 签名，非代理密钥）。',
+        tpsl_budget_ph:      '预算 USDC（例如 100）',
+        tpsl_enable_btn:     'Enable TP/SL',
+        tpsl_sl_ph:          '止损 $',
+        tpsl_tp_ph:          '止盈 $',
+        tpsl_set_btn:        '设置持仓止盈止损',
+        tpsl_no_active:      '没有活跃的止盈止损',
+        // 列表
+        no_trades_yet:       '暂无交易',
+        no_open_orders:      '没有未成交订单',
+        col_filled:          '已成交',
+        tab_orders:          '📑 订单',
     }
 };
 
@@ -400,6 +457,28 @@ function setLanguage(lang) {
 
     document.querySelectorAll('.lang-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.lang === lang));
+
+    // Декларативные data-i18n* атрибуты — общий проход для ВСЕХ элементов,
+    // где они проставлены. Новые элементы с этими атрибутами переводятся
+    // автоматически, без необходимости дописывать ручной код сюда — именно
+    // отсутствие такого общего прохода раньше приводило к тому, что часть
+    // строк (хоткеи, TP/SL) оставались непереведёнными.
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const val = t(el.dataset.i18n);
+        if (val) el.textContent = val;
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach(el => {
+        const val = t(el.dataset.i18nHtml);
+        if (val) el.innerHTML = val;
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const val = t(el.dataset.i18nPlaceholder);
+        if (val) el.placeholder = val;
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const val = t(el.dataset.i18nTitle);
+        if (val) el.title = val;
+    });
 
     // Top bar
     const status = document.getElementById('status-badge');
@@ -532,7 +611,8 @@ function setLanguage(lang) {
 
 function loadLanguage() {
     const saved = localStorage.getItem('plov_lang');
-    currentLang = (saved && LANGUAGES[saved]) ? saved : 'ru';
+    const lang  = (saved && LANGUAGES[saved]) ? saved : (currentLang || 'en');
+    setLanguage(lang);
 }
 
 // ── ПЕРЕВОДЫ ПОДПИСКИ ─────────────────────────────────────

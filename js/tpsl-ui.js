@@ -106,7 +106,7 @@ async function renderTpSlOrders() {
     const active = orders.filter(o => o.status === 'TPSL_ORDER_STATUS_ACCEPTED');
 
     if (!active.length) {
-        listEl.innerHTML = '<div class="no-trades muted">No active TP/SL</div>';
+        listEl.innerHTML = `<div class="no-trades muted">${typeof t === 'function' ? t('tpsl_no_active') : 'No active TP/SL'}</div>`;
         return;
     }
 

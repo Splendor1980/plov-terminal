@@ -273,7 +273,7 @@ async function fetchOpenOrders() {
 
     try {
         const res = await fetch(`${RISEX_API.rest}/v1/orders/open?account=${account}&market_id=${currentMarket}`);
-        if (!res.ok) { if (listEl) listEl.innerHTML = '<div class="no-trades muted">No open orders</div>'; return []; }
+        if (!res.ok) { if (listEl) listEl.innerHTML = `<div class="no-trades muted">${typeof t === 'function' ? t('no_open_orders') : 'No open orders'}</div>`; return []; }
         const raw = await res.json();
         const orders = raw.data?.orders || raw.orders || [];
         renderOpenOrders(orders);
@@ -289,7 +289,7 @@ function renderOpenOrders(orders) {
     if (!listEl) return;
 
     if (!orders.length) {
-        listEl.innerHTML = '<div class="no-trades muted">No open orders</div>';
+        listEl.innerHTML = `<div class="no-trades muted">${typeof t === 'function' ? t('no_open_orders') : 'No open orders'}</div>`;
         return;
     }
 

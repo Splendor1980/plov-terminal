@@ -98,10 +98,11 @@ html, body {
 .status-badge.offline { background: var(--red-bg); color: var(--red); }
 
 .btn-icon {
-    background: none; border: 1px solid var(--border);
+    background: var(--bg3); border: 1px solid var(--border2);
     padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 14px;
+    color: var(--text);
 }
-.btn-icon:hover { border-color: var(--border2); }
+.btn-icon:hover { border-color: var(--accent); background: var(--bg4); }
 
 .btn-auth {
     background: var(--accent); color: #000; border: none;

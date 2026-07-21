@@ -152,7 +152,7 @@
             </button>
         </div>
 
-        <div class="hotkeys" id="hotkeys-text">
+        <div class="hotkeys" id="hotkeys-text" data-i18n-html="hotkeys_hint_html">
             <kbd>B</kbd> Long &nbsp; <kbd>S</kbd> Short &nbsp; <kbd>1-5</kbd> плечо &nbsp;
             <kbd>Q W E R</kbd> 25/50/75/100% &nbsp; <kbd>C</kbd> закрыть &nbsp; <kbd>F</kbd> перевернуть &nbsp; <kbd>Esc</kbd> сброс
         </div>
@@ -162,7 +162,7 @@
                 <button class="log-tab active" id="tab-log"      onclick="switchLogTab('log')">📋 Log</button>
                 <button class="log-tab"         id="tab-trades"   onclick="switchLogTab('trades')">⚡ Trades</button>
                 <button class="log-tab"         id="tab-mytrades" onclick="switchLogTab('mytrades')">💼 My Trades</button>
-                <button class="log-tab"         id="tab-orders"   onclick="switchLogTab('orders')">📑 Orders</button>
+                <button class="log-tab"         id="tab-orders"   onclick="switchLogTab('orders')" data-i18n="tab_orders">📑 Orders</button>
             </div>
             <div class="log-pane" id="pane-log">
                 <div class="trade-log" id="trade-log">
@@ -177,18 +177,18 @@
             </div>
             <div class="log-pane" id="pane-mytrades" style="display:none">
                 <div class="my-trades-header-inline" id="mytrades-header">
-                    <span>Side</span><span>Price</span><span>Size</span><span>Lev</span><span>PnL</span><span>Time</span>
+                    <span data-i18n="col_side">Side</span><span data-i18n="col_price">Price</span><span data-i18n="col_size">Size</span><span data-i18n="col_lev">Lev</span><span data-i18n="col_pnl">PnL</span><span data-i18n="col_time">Time</span>
                 </div>
                 <div class="my-trades-list-inline" id="my-trades-list">
-                    <div class="no-trades muted">No trades yet</div>
+                    <div class="no-trades muted" data-i18n="no_trades_yet">No trades yet</div>
                 </div>
             </div>
             <div class="log-pane" id="pane-orders" style="display:none">
                 <div class="my-trades-header-inline" id="orders-header">
-                    <span>Side</span><span>Price</span><span>Size</span><span>Filled</span><span></span>
+                    <span data-i18n="col_side">Side</span><span data-i18n="col_price">Price</span><span data-i18n="col_size">Size</span><span data-i18n="col_filled">Filled</span><span></span>
                 </div>
                 <div class="my-trades-list-inline" id="open-orders-list">
-                    <div class="no-trades muted">No open orders</div>
+                    <div class="no-trades muted" data-i18n="no_open_orders">No open orders</div>
                 </div>
             </div>
         </div>
@@ -201,17 +201,17 @@
         <div class="section" id="signer-section">
             <div class="section-title" id="signer-title">🔑 RISEx API Key</div>
             <div id="signer-not-connected">
-                <p class="signer-hint" id="signer-hint-text">
+                <p class="signer-hint" id="signer-hint-text" data-i18n="signer_hint_full">
                     Не используйте ключ основного кошелька (MetaMask/Rabby)! Создайте отдельный API-кошелёк: rise.trade → API → оставьте поле Address пустым → Generate → Authorize.
                 </p>
                 <button class="btn-rise-api" onclick="openRiseApiPage()">
                     <span id="btn-rise-api-text">Get API Key on rise.trade</span> ↗
                 </button>
                 <div class="signer-input-row">
-                    <input type="password" id="signer-key-input" placeholder="0x... (приватный ключ API-кошелька)" autocomplete="new-password" name="plov-signer-key-nofill">
-                    <button class="btn-sm" type="button" onclick="toggleSignerKeyVisibility()" id="btn-toggle-signer-key" title="Show/hide">👁</button>
+                    <input type="password" id="signer-key-input" data-i18n-placeholder="signer_key_ph" placeholder="0x... (приватный ключ API-кошелька)" autocomplete="new-password" name="plov-signer-key-nofill">
+                    <button class="btn-sm" type="button" onclick="toggleSignerKeyVisibility()" id="btn-toggle-signer-key" data-i18n-title="show_hide" title="Show/hide">👁</button>
                 </div>
-                <input type="text" id="signer-account-input" placeholder="Account address (если отличается от API-кошелька, необязательно)" style="margin-top:6px;width:100%;">
+                <input type="text" id="signer-account-input" data-i18n-placeholder="signer_account_ph" placeholder="Account address (если отличается от API-кошелька, необязательно)" style="margin-top:6px;width:100%;">
                 <button class="btn-sm btn-green" onclick="saveSignerKey()" id="btn-save-signer" style="margin-top:6px;width:100%;">Save</button>
                 <p class="signer-security-note" id="signer-security-note">
                     🔒 Stored locally in your browser only. Never sent to our servers.
@@ -224,7 +224,7 @@
                     <button class="btn-copy" onclick="copySignerAddress()">⧉</button>
                 </div>
                 <div class="signer-connected-row" id="signer-account-row" style="display:none">
-                    <span style="opacity:.6;font-size:11px;">account:</span>
+                    <span style="opacity:.6;font-size:11px;" data-i18n="signer_account_label">account:</span>
                     <span id="signer-account-short">---</span>
                 </div>
                 <button class="btn-sm btn-red" onclick="disconnectSigner()" id="btn-disconnect-signer">Disconnect</button>
@@ -252,16 +252,16 @@
         <div class="section" id="tpsl-section">
             <div class="section-title">🎯 TP / SL</div>
             <div id="tpsl-not-enabled">
-                <p class="signer-hint">Разово разрешить RISEx исполнять твои TP/SL-ордера (подпись через Rabby/MetaMask — не delegate-ключ).</p>
-                <input type="number" id="tpsl-budget-input" placeholder="Бюджет USDC (напр. 100)" min="1" step="1" style="width:100%;margin-bottom:6px;">
-                <button class="btn-sm btn-green" onclick="handleApproveTpSlBudget()" id="btn-approve-tpsl" style="width:100%;">Enable TP/SL</button>
+                <p class="signer-hint" data-i18n="tpsl_hint">Разово разрешить RISEx исполнять твои TP/SL-ордера (подпись через Rabby/MetaMask — не delegate-ключ).</p>
+                <input type="number" id="tpsl-budget-input" data-i18n-placeholder="tpsl_budget_ph" placeholder="Бюджет USDC (напр. 100)" min="1" step="1" style="width:100%;margin-bottom:6px;">
+                <button class="btn-sm btn-green" onclick="handleApproveTpSlBudget()" id="btn-approve-tpsl" data-i18n="tpsl_enable_btn" style="width:100%;">Enable TP/SL</button>
             </div>
             <div id="tpsl-enabled" style="display:none">
                 <div class="signer-input-row">
-                    <input type="number" id="tpsl-sl-input" placeholder="Stop Loss $" min="0" step="0.1">
-                    <input type="number" id="tpsl-tp-input" placeholder="Take Profit $" min="0" step="0.1">
+                    <input type="number" id="tpsl-sl-input" data-i18n-placeholder="tpsl_sl_ph" placeholder="Stop Loss $" min="0" step="0.1">
+                    <input type="number" id="tpsl-tp-input" data-i18n-placeholder="tpsl_tp_ph" placeholder="Take Profit $" min="0" step="0.1">
                 </div>
-                <button class="btn-sm btn-green" onclick="handleSetTpSl()" id="btn-set-tpsl" style="width:100%;margin-top:6px;">Set TP/SL for position</button>
+                <button class="btn-sm btn-green" onclick="handleSetTpSl()" id="btn-set-tpsl" data-i18n="tpsl_set_btn" style="width:100%;margin-top:6px;">Set TP/SL for position</button>
                 <div class="my-trades-list-inline" id="tpsl-orders-list" style="margin-top:8px;"></div>
             </div>
         </div>
@@ -317,6 +317,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Не требует логина — можно показывать сразу
     initSecurity();
+    if (typeof loadLanguage === 'function') loadLanguage();
     initUI();
     initChart();
     if (typeof initHotkeys === 'function') initHotkeys();

@@ -66,7 +66,7 @@ function renderMyTrades() {
     const el = document.getElementById('my-trades-list');
     if (!el) return;
     if (!myTrades.length) {
-        el.innerHTML = '<div class="no-trades">Нет сделок</div>';
+        el.innerHTML = `<div class="no-trades">${typeof t === 'function' ? t('no_trades_yet') : 'No trades yet'}</div>`;
         return;
     }
     el.innerHTML = myTrades.slice(0, 20).map(t => {
