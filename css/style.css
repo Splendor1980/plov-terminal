@@ -205,7 +205,7 @@ html, body {
 .price-funding { font-size: 10px; color: var(--text3); }
 
 .chart-wrap {
-    height: 145px; position: relative;
+    height: 175px; position: relative;
     background: var(--bg2); border-bottom: 1px solid var(--border);
     flex-shrink: 0; overflow: hidden;
 }

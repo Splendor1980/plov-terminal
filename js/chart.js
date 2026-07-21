@@ -30,7 +30,7 @@ const CHART_CANDLE_COUNT = 60;
 const TICK_WINDOW_MS     = 60_000; // окно тиковой ленты — последние 60 сек
 
 // Доля высоты canvas'а: тиковая лента (главное) / объёмные бары / OHLC-контекст
-const TICK_AREA_RATIO   = 0.55;
+const TICK_AREA_RATIO   = 0.52;
 const VOLUME_AREA_RATIO = 0.20;
 
 function getChartCanvas() {
@@ -219,30 +219,19 @@ function renderOhlcArea(ctx, w, yOffset, ohlcH) {
     const range = (max - min) || 1;
 
     const slot  = w / candles.length;
-    const tickW = Math.max(1, slot * 0.35);
+    const barW  = Math.max(2, slot * 0.7);
     const yFor  = (price) => yOffset + ohlcH - ((price - min) / range) * ohlcH;
 
-    ctx.globalAlpha = 0.55; // визуально приглушённее тиковой ленты — второстепенный контекст
+    // Сплошные range-бары (high-low), не тонкие open/close палки — на высоте
+    // ~30px тонкие линии физически неразличимы, заливка читается всегда.
+    ctx.globalAlpha = 0.6;
     candles.forEach((k, i) => {
-        const x     = i * slot + slot / 2;
-        const up    = k.close >= k.open;
-        ctx.strokeStyle = up ? getCssVar('--green-dim') : getCssVar('--red-dim');
-        ctx.lineWidth   = 1;
-
-        ctx.beginPath();
-        ctx.moveTo(x, yFor(k.high));
-        ctx.lineTo(x, yFor(k.low));
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(x - tickW, yFor(k.open));
-        ctx.lineTo(x, yFor(k.open));
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(x, yFor(k.close));
-        ctx.lineTo(x + tickW, yFor(k.close));
-        ctx.stroke();
+        const x  = i * slot + slot / 2;
+        const up = k.close >= k.open;
+        ctx.fillStyle = up ? getCssVar('--green-dim') : getCssVar('--red-dim');
+        const yHigh = yFor(k.high);
+        const yLow  = yFor(k.low);
+        ctx.fillRect(x - barW / 2, yHigh, barW, Math.max(1, yLow - yHigh));
     });
     ctx.globalAlpha = 1;
 }
