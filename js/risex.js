@@ -370,6 +370,16 @@ function _handleWsMessage(msg) {
 // Локальный кэш стакана — накапливаем уровни
 const _obCache = { asks: {}, bids: {} };
 
+function hexToRgba(hex, alpha) {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.substring(0, 2), 16) || 0;
+    const g = parseInt(h.substring(2, 4), 16) || 0;
+    const b = parseInt(h.substring(4, 6), 16) || 0;
+    return `rgba(${r},${g},${b},${alpha})`;
+}
+
+let _obPrevSizes = { asks: {}, bids: {} };
+
 function renderOrderBook(data) {
     if (!data) return;
 
@@ -414,26 +424,53 @@ function renderOrderBook(data) {
     if (!cachedAsks.length && !cachedBids.length) return;
 
     // Нормализуем цены
-    // Формат из SDK: [price_string, size_string]
-    // Или объект: {price, quantity/size}
     const norm = (v) => {
         const n = parseFloat(v);
         return n > 1e15 ? n / 1e18 : n;
     };
 
-    // toObj определён в кэше выше
-
     const asksEl = document.getElementById('asks-container');
     const bidsEl = document.getElementById('bids-container');
     if (!asksEl || !bidsEl) return;
 
-    // Максимальный объём для depth bar
+    // Максимальный объём для depth bar / heatmap
     const allSizes = [...cachedAsks, ...cachedBids].map(r => parseFloat(r.quantity || 0));
     const maxSize  = Math.max(...allSizes, 1);
+
+    // Imbalance zones (>65% в одну сторону из видимого объёма)
+    const totalAskVol = cachedAsks.reduce((s, r) => s + parseFloat(r.quantity || 0), 0);
+    const totalBidVol = cachedBids.reduce((s, r) => s + parseFloat(r.quantity || 0), 0);
+    const totalVol     = totalAskVol + totalBidVol || 1;
+    const bidShare      = totalBidVol / totalVol;
+    const askShare       = totalAskVol / totalVol;
+    const IMBALANCE_THRESHOLD = 0.65;
+    const bidImbalance = obMode !== 'classic' && bidShare > IMBALANCE_THRESHOLD;
+    const askImbalance = obMode !== 'classic' && askShare > IMBALANCE_THRESHOLD;
+
+    const heatmapOn = obMode !== 'classic';
+
+    function styleRow(row, side, price, size) {
+        if (!heatmapOn) return;
+        const prevMap = side === 'ask' ? _obPrevSizes.asks : _obPrevSizes.bids;
+        const prevSize = prevMap[price] ?? size;
+        const delta    = Math.abs(size - prevSize);
+
+        // Dynamic Intensity: базовый объём + всплеск скорости изменения
+        const baseIntensity = size / maxSize;
+        const velocityBoost = Math.min(1, delta / (maxSize * 0.3));
+        const intensity      = Math.min(1, baseIntensity * 0.7 + velocityBoost * 0.3);
+
+        const color = side === 'ask' ? getCssVar('--red') : getCssVar('--green');
+        row.style.background = hexToRgba(color, 0.06 + intensity * 0.34);
+
+        const isDominant = (side === 'bid' && bidImbalance) || (side === 'ask' && askImbalance);
+        if (isDominant) row.classList.add('imbalance-zone');
+    }
 
     // ASKS (красные) — рисуем снизу вверх
     const asksSorted = [...cachedAsks].sort((a, b) => norm(a.price) - norm(b.price));
     asksEl.innerHTML = '';
+    const newPrevAsks = {};
     asksSorted.slice(0, 10).forEach(level => {
         const price = norm(level.price);
         const size  = parseFloat(level.quantity || level.size || 0);
@@ -450,12 +487,16 @@ function renderOrderBook(data) {
             const inp = document.getElementById('amount-input');
             if (inp) inp.value = total.toFixed(2); // total (price×size, USDC) — не raw BTC size
         };
+        styleRow(row, 'ask', level.price, size);
+        newPrevAsks[level.price] = size;
         asksEl.appendChild(row);
     });
+    _obPrevSizes.asks = newPrevAsks;
 
     // BIDS (зелёные)
     const bidsSorted = [...cachedBids].sort((a, b) => norm(b.price) - norm(a.price));
     bidsEl.innerHTML = '';
+    const newPrevBids = {};
     bidsSorted.slice(0, 10).forEach(level => {
         const price = norm(level.price);
         const size  = parseFloat(level.quantity || level.size || 0);
@@ -472,8 +513,11 @@ function renderOrderBook(data) {
             const inp = document.getElementById('amount-input');
             if (inp) inp.value = total.toFixed(2); // total (price×size, USDC) — не raw BTC size
         };
+        styleRow(row, 'bid', level.price, size);
+        newPrevBids[level.price] = size;
         bidsEl.appendChild(row);
     });
+    _obPrevSizes.bids = newPrevBids;
 
     // Спред
     if (asksSorted.length && bidsSorted.length) {
@@ -489,6 +533,118 @@ function renderOrderBook(data) {
             updatePriceUI(lastPrice);
         }
     }
+}
+
+// ── Order Book display mode (Classic / Heatmap / Hybrid) ────
+let obMode = 'classic';
+function setObMode(mode) {
+    if (!['classic', 'heatmap', 'hybrid'].includes(mode)) return;
+    obMode = mode;
+    document.querySelectorAll('.ob-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    const analytics = document.getElementById('ob-analytics');
+    if (analytics) analytics.style.display = mode === 'hybrid' ? 'block' : 'none';
+    renderOrderBook({ data: { asks: [], bids: [] } }); // форс-перерисовка текущим кэшем
+}
+window.setObMode = setObMode;
+
+// ── Cumulative Volume Delta (с открытия страницы) ────────────
+let cumulativeDelta = 0;
+let cvdHistory       = []; // [{time, value}] — для спарклайна
+const CVD_HISTORY_MAX = 300;
+
+// ── VWAP (с открытия страницы) ───────────────────────────────
+let vwapNumerator   = 0;
+let vwapDenominator = 0;
+
+// ── Large Order — крупная сделка относительно недавнего среднего ──
+let recentTradeSizes = []; // скользящее окно последних N размеров сделок
+const LARGE_ORDER_WINDOW  = 40;
+const LARGE_ORDER_MULT    = 3; // во сколько раз больше среднего = "кит"
+
+function trackAnalytics(side, price, size) {
+    const notional = price * size;
+
+    // CVD
+    cumulativeDelta += side === 'buy' ? notional : -notional;
+    cvdHistory.push({ time: Date.now(), value: cumulativeDelta });
+    if (cvdHistory.length > CVD_HISTORY_MAX) cvdHistory.shift();
+
+    // VWAP
+    vwapNumerator   += price * size;
+    vwapDenominator += size;
+
+    // Large order
+    const avgSize = recentTradeSizes.length
+        ? recentTradeSizes.reduce((a, b) => a + b, 0) / recentTradeSizes.length
+        : size;
+    const isLarge = recentTradeSizes.length >= 10 && size > avgSize * LARGE_ORDER_MULT;
+
+    recentTradeSizes.push(size);
+    if (recentTradeSizes.length > LARGE_ORDER_WINDOW) recentTradeSizes.shift();
+
+    if (isLarge) onLargeOrder(side, price, size, notional);
+
+    updateAnalyticsStrip();
+}
+
+function onLargeOrder(side, price, size, notional) {
+    const logEl = document.getElementById('large-orders-log');
+    if (logEl) {
+        const item = document.createElement('div');
+        item.className = 'ob-large-order-item';
+        item.style.background = side === 'buy' ? 'var(--green-bg)' : 'var(--red-bg)';
+        item.innerHTML = `<span class="${side === 'buy' ? 'green' : 'red'}">${side === 'buy' ? '🐋 BUY' : '🐋 SELL'}</span><span>${size.toFixed(4)} @ ${price.toFixed(1)}</span>`;
+        logEl.prepend(item);
+        while (logEl.children.length > 8) logEl.removeChild(logEl.lastChild);
+    }
+    if (typeof flashLargeOrderOnChart === 'function') flashLargeOrderOnChart(price, side);
+}
+
+function updateAnalyticsStrip() {
+    const cvdEl  = document.getElementById('cvd-value');
+    const vwapEl = document.getElementById('vwap-value');
+    if (cvdEl) {
+        cvdEl.textContent = (cumulativeDelta >= 0 ? '+' : '') + cumulativeDelta.toFixed(1);
+        cvdEl.className   = 'ob-analytics-val ' + (cumulativeDelta >= 0 ? 'green' : 'red');
+    }
+    if (vwapEl && vwapDenominator > 0) {
+        vwapEl.textContent = (vwapNumerator / vwapDenominator).toFixed(1);
+    }
+    renderCvdSparkline();
+}
+
+function renderCvdSparkline() {
+    const canvas = document.getElementById('cvd-canvas');
+    if (!canvas || cvdHistory.length < 2) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 200, h = canvas.clientHeight || 34;
+    if (canvas.width !== w * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const vals = cvdHistory.map(p => p.value);
+    const max = Math.max(...vals, 0.001), min = Math.min(...vals, -0.001);
+    const range = (max - min) || 1;
+    const yFor = (v) => h - ((v - min) / range) * h;
+    const xFor = (i) => (i / (cvdHistory.length - 1)) * w;
+
+    // Нулевая линия
+    ctx.strokeStyle = getCssVar('--border');
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(0, yFor(0)); ctx.lineTo(w, yFor(0));
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    ctx.strokeStyle = cumulativeDelta >= 0 ? getCssVar('--green') : getCssVar('--red');
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    cvdHistory.forEach((p, i) => {
+        const x = xFor(i), y = yFor(p.value);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
 }
 
 // ── Order Flow Imbalance (30-сек скользящее окно) ───────────
@@ -545,6 +701,7 @@ function renderTrades(trades) {
                    ? 'buy' : 'sell';
 
         trackFlowTrade(side, price, size);
+        trackAnalytics(side, price, size);
         if (typeof pushChartTick === 'function') pushChartTick(price, side, size);
 
         const ts   = trade.timestamp || trade.created_at || trade.time

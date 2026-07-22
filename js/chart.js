@@ -66,6 +66,15 @@ function pushChartTick(price, side, size = 0) {
 }
 window.pushChartTick = pushChartTick;
 
+let _largeOrderMarkers = []; // [{time, price, side}]
+
+function flashLargeOrderOnChart(price, side) {
+    _largeOrderMarkers.push({ time: Date.now(), price, side });
+    const cutoff = Date.now() - TICK_WINDOW_MS;
+    _largeOrderMarkers = _largeOrderMarkers.filter(m => m.time >= cutoff);
+}
+window.flashLargeOrderOnChart = flashLargeOrderOnChart;
+
 function renderTickArea(ctx, w, tickH) {
     const cutoff = Date.now() - TICK_WINDOW_MS;
     const ticks  = tickBuffer.filter(t => t.time >= cutoff);
@@ -108,6 +117,36 @@ function renderTickArea(ctx, w, tickH) {
         ctx.arc(x, y, 2, 0, Math.PI * 2);
         ctx.fill();
     });
+
+    // VWAP — горизонтальная референсная линия (если посчитан в risex.js)
+    if (typeof vwapDenominator !== 'undefined' && vwapDenominator > 0) {
+        const vwap = vwapNumerator / vwapDenominator;
+        if (vwap >= min - range * 0.3 && vwap <= max + range * 0.3) {
+            const y = yFor(vwap);
+            ctx.strokeStyle = getCssVar('--gold');
+            ctx.globalAlpha = 0.6;
+            ctx.setLineDash([3, 3]);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, y); ctx.lineTo(w, y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    // Крупные сделки ("киты") — золотое кольцо вокруг точки
+    if (typeof _largeOrderMarkers !== 'undefined') {
+        _largeOrderMarkers.forEach(m => {
+            if (m.time < cutoff) return;
+            const x = xFor(m.time), y = yFor(m.price);
+            ctx.strokeStyle = getCssVar('--gold');
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.stroke();
+        });
+    }
 
     const highEl = document.getElementById('chart-high');
     const lowEl  = document.getElementById('chart-low');
