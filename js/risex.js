@@ -543,6 +543,9 @@ function setObMode(mode) {
     document.querySelectorAll('.ob-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
     const analytics = document.getElementById('ob-analytics');
     if (analytics) analytics.style.display = mode === 'hybrid' ? 'block' : 'none';
+    localStorage.setItem('plov_ob_mode_seen', '1');
+    const badge = document.getElementById('ob-mode-new-badge');
+    if (badge) badge.style.display = 'none';
     renderOrderBook({ data: { asks: [], bids: [] } }); // форс-перерисовка текущим кэшем
 }
 window.setObMode = setObMode;

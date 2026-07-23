@@ -63,11 +63,11 @@
 
     <!-- LEFT: Order Book -->
     <div class="panel panel-left">
-        <div class="panel-title" id="ob-panel-title" data-tooltip="Живой стакан заявок с биржи RISEx (через WebSocket). Показывает реальные лимитные ордера на покупку (зелёные) и продажу (красные). Клик по строке — подставляет сумму сделки в поле Amount.">📊 Order Book <span class="badge-live" id="ob-live">LIVE</span></div>
+        <div class="panel-title" id="ob-panel-title" data-tooltip="Live order book from RISEx (via WebSocket). Shows real limit buy (green) and sell (red) orders. Click a row to fill that amount into the Amount field.">📊 Order Book <span class="badge-live" id="ob-live">LIVE</span> <span class="info-dot" data-tooltip="Hover over labels and panels (marked ⓘ) to learn what each part of the interface shows.">ⓘ</span></div>
         <div class="ob-mode-row" id="ob-mode-row">
-            <button class="ob-mode-btn active" data-mode="classic" onclick="setObMode('classic')" data-tooltip="Обычный текстовый стакан — цена/размер/сумма, без дополнительной раскраски.">Classic</button>
-            <button class="ob-mode-btn" data-mode="heatmap" onclick="setObMode('heatmap')" data-tooltip="Цвет строки = интенсивность (объём + скорость изменения за секунду). Золотая пульсация = зона дисбаланса, когда одна сторона стакана даёт больше 65% видимого объёма.">Heatmap</button>
-            <button class="ob-mode-btn" data-mode="hybrid" onclick="setObMode('hybrid')" data-tooltip="Heatmap + панель снизу: Cumulative Delta (нарастающий перевес покупок/продаж с начала сессии), VWAP и лог крупных сделок («китов»).">Hybrid</button>
+            <button class="ob-mode-btn active" data-mode="classic" onclick="setObMode('classic')" data-tooltip="Plain text order book — price/size/total, no extra coloring.">Classic</button>
+            <button class="ob-mode-btn" data-mode="heatmap" onclick="setObMode('heatmap')" data-tooltip="Row color = intensity (volume + how fast it's changing per second). Gold pulse = imbalance zone, when one side holds over 65% of visible volume.">Heatmap <span class="new-badge" id="ob-mode-new-badge">NEW</span></button>
+            <button class="ob-mode-btn" data-mode="hybrid" onclick="setObMode('hybrid')" data-tooltip="Heatmap + panel below: Cumulative Delta (running buy/sell imbalance since page load), VWAP, and a log of unusually large trades ('whales').">Hybrid</button>
         </div>
         <div class="ob-header">
             <span id="ob-price-label">Price</span>
@@ -79,15 +79,15 @@
         <div class="ob-bids" id="bids-container"><div class="ob-placeholder">Loading...</div></div>
         <div class="ob-analytics" id="ob-analytics" style="display:none">
             <div class="ob-analytics-row">
-                <span class="ob-analytics-label" data-tooltip="Session Cumulative Volume Delta: нарастающая сумма (объём покупок минус объём продаж, в USDC) с момента открытия страницы. Растёт — давление покупателей, падает — продавцов.">CVD</span>
+                <span class="ob-analytics-label" data-tooltip="Session Cumulative Volume Delta: running total (buy volume minus sell volume, in USDC) since the page loaded. Rising = buyer pressure, falling = seller pressure.">CVD</span>
                 <span class="ob-analytics-val" id="cvd-value">0.00</span>
             </div>
             <canvas class="ob-cvd-canvas" id="cvd-canvas"></canvas>
             <div class="ob-analytics-row">
-                <span class="ob-analytics-label" data-tooltip="Volume Weighted Average Price — средняя цена сделок за сессию, взвешенная по объёму. Часто используется как справочный уровень: выше VWAP = дорого относительно среднего, ниже = дёшево.">VWAP</span>
+                <span class="ob-analytics-label" data-tooltip="Volume Weighted Average Price — the session's average trade price weighted by size. Commonly used as a reference level: above VWAP = expensive vs. average, below = cheap.">VWAP</span>
                 <span class="ob-analytics-val" id="vwap-value">---</span>
             </div>
-            <div class="ob-large-orders" id="large-orders-log" data-tooltip="Сделки, размер которых минимум в 3 раза больше среднего за последние ~40 сделок — потенциально значимые действия крупных участников."></div>
+            <div class="ob-large-orders" id="large-orders-log" data-tooltip="Trades at least 3x larger than the average of the last ~40 trades — potentially significant large-player activity."></div>
         </div>
     </div>
 
@@ -102,7 +102,7 @@
                 <span class="price-change" id="price-change">+0.00%</span>
                 <span class="price-funding" id="funding-rate">FR: ---</span>
             </div>
-            <div class="flow-indicator" id="flow-indicator" data-tooltip="Order Flow — соотношение объёма агрессивных покупок к продажам за последние 30 сек, из реального потока сделок RISEx. Перевес в одну сторону часто предшествует движению цены туда же.">
+            <div class="flow-indicator" id="flow-indicator" data-tooltip="Order Flow — ratio of aggressive buy vs. sell volume over the last 30s, from RISEx's real trade stream. A strong lean often precedes price moving that way.">
                 <div class="flow-bar">
                     <div class="flow-buy" id="flow-buy-bar" style="width:50%"></div>
                     <div class="flow-sell" id="flow-sell-bar" style="width:50%"></div>
@@ -113,9 +113,9 @@
 
         <div class="chart-wrap">
             <canvas class="chart-canvas" id="chart-canvas"></canvas>
-            <div class="chart-tooltip-zone" style="top:0;height:52%;" data-tooltip="Тиковая лента — каждая точка это реальная исполненная сделка на RISEx (не искусственный таймфрейм). Зелёная = агрессивная покупка, красная = продажа. Пунктирная линия — VWAP сессии."></div>
-            <div class="chart-tooltip-zone" style="top:52%;height:20%;" data-tooltip="Объёмные бары — высота показывает размер конкретной сделки. Крупный принт сразу заметен, в отличие от точек одинакового размера выше."></div>
-            <div class="chart-tooltip-zone" style="top:72%;bottom:0;" data-tooltip="Приглушённый фон — где была цена последние ~10-15 минут (реальные OHLCV-свечи с RISEx). Общий контекст, не главный инструмент для входа/выхода."></div>
+            <div class="chart-tooltip-zone" style="top:0;height:52%;" data-tooltip="Tick tape — every dot is a real executed trade on RISEx (no artificial timeframe). Green = aggressive buy, red = sell. Dashed line = session VWAP."></div>
+            <div class="chart-tooltip-zone" style="top:52%;height:20%;" data-tooltip="Volume bars — height shows the size of that specific trade. A large print stands out immediately, unlike the equal-sized dots above."></div>
+            <div class="chart-tooltip-zone" style="top:72%;bottom:0;" data-tooltip="Dimmed background — where price has been over the last ~10-15 min (real OHLCV bars from RISEx). General context, not the main tool for entries/exits."></div>
             <div class="chart-tf-row" id="chart-tf-row">
                 <button class="chart-tf-btn active" data-tf="1m"  onclick="setChartTimeframe('1m')">1m</button>
                 <button class="chart-tf-btn"        data-tf="5m"  onclick="setChartTimeframe('5m')">5m</button>
@@ -128,7 +128,7 @@
             </div>
         </div>
 
-        <div class="leverage-row" id="leverage-row" data-tooltip="Кредитное плечо. Размер позиции = (сумма USDC × плечо) / цена. Чем выше плечо, тем ближе цена ликвидации к цене входа — риск растёт нелинейно.">
+        <div class="leverage-row" id="leverage-row" data-tooltip="Leverage. Position size = (USDC amount × leverage) / price. Higher leverage means the liquidation price sits closer to entry — risk grows non-linearly.">
             <span class="lev-label" id="lev-label-text">Leverage:</span>
             <div class="lev-btns">
                 <button class="lev-btn active" data-lev="1"  onclick="setLeverage(1)">1×</button>
@@ -140,8 +140,8 @@
         </div>
 
         <div class="order-type-row" id="order-type-row" style="display:flex;gap:6px;margin-bottom:8px;">
-            <button class="pct-btn order-type-btn active" id="otype-market" onclick="setOrderType('market')" style="flex:1;" data-tooltip="Исполняется немедленно по лучшей доступной цене в стакане. Гарантирован вход, но не гарантирована точная цена.">Market</button>
-            <button class="pct-btn order-type-btn" id="otype-limit" onclick="setOrderType('limit')" style="flex:1;" data-tooltip="Исполняется только по указанной цене или лучше. Гарантирована цена, но не гарантировано исполнение — ордер может просто повиснуть в стакане.">Limit</button>
+            <button class="pct-btn order-type-btn active" id="otype-market" onclick="setOrderType('market')" style="flex:1;" data-tooltip="Fills immediately at the best available price in the book. Entry is guaranteed, exact price is not.">Market</button>
+            <button class="pct-btn order-type-btn" id="otype-limit" onclick="setOrderType('limit')" style="flex:1;" data-tooltip="Fills only at your specified price or better. Price is guaranteed, execution is not — the order may just sit unfilled in the book.">Limit</button>
         </div>
         <div class="amount-input-wrap" id="limit-price-wrap" style="display:none;margin-bottom:8px;">
             <input type="number" id="limit-price-input" placeholder="Limit price USDC" min="0" step="0.1">
@@ -253,14 +253,14 @@
 
         <!-- Balance -->
         <div class="section">
-            <div class="section-title" id="balance-title" data-tooltip="Реальный баланс твоего торгового аккаунта на RISEx (equity/коллатерал), не сырой баланс кошелька. Обновляется после каждой сделки.">💰 Balance</div>
+            <div class="section-title" id="balance-title" data-tooltip="Your real trading account balance on RISEx (equity/collateral), not a raw wallet balance. Refreshes after every trade.">💰 Balance</div>
             <div class="balances">
                 <div class="bal-row"><span class="bal-label" id="bal-label-usdc">USDC (RISEx)</span><span class="bal-val green" id="bal-risex">0.00</span></div>
             </div>
         </div>
 
         <div class="section">
-            <div class="section-title" id="position-title" data-tooltip="Твоя текущая открытая позиция на RISEx, с реальным биржи, не локальная догадка. PnL пересчитывается на каждый тик цены.">📦 Position</div>
+            <div class="section-title" id="position-title" data-tooltip="Your current open position on RISEx, straight from the exchange — not a local guess. PnL recalculates on every price tick.">📦 Position</div>
             <div class="pos-row"><span class="pos-label" id="pos-label-side">Side</span><span class="pos-val" id="pos-side">---</span></div>
             <div class="pos-row"><span class="pos-label" id="pos-label-size">Size</span><span class="pos-val" id="pos-size">---</span></div>
             <div class="pos-row"><span class="pos-label" id="pos-label-entry">Entry</span><span class="pos-val" id="pos-entry">---</span></div>
@@ -287,7 +287,7 @@
         </div>
 
         <div class="section">
-            <div class="section-title" id="stats-title" data-tooltip="Статистика твоих сделок за сессию в этом браузере.">📊 Statistics</div>
+            <div class="section-title" id="stats-title" data-tooltip="Your trading stats for this session, in this browser.">📊 Statistics</div>
             <div class="pos-row"><span class="pos-label" id="stat-label-trades">Trades</span><span class="pos-val" id="stat-trades">0</span></div>
             <div class="pos-row"><span class="pos-label" id="stat-label-winrate">Winrate</span><span class="pos-val" id="stat-winrate">0%</span></div>
             <div class="pos-row"><span class="pos-label" id="stat-label-volume">Volume</span><span class="pos-val" id="stat-volume">0</span></div>
@@ -339,6 +339,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initSecurity();
     if (typeof loadLanguage === 'function') loadLanguage();
     initUI();
+    if (localStorage.getItem('plov_ob_mode_seen')) {
+        const badge = document.getElementById('ob-mode-new-badge');
+        if (badge) badge.style.display = 'none';
+    }
     initChart();
     if (typeof initHotkeys === 'function') initHotkeys();
     showWelcomeBubble();
