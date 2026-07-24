@@ -316,8 +316,21 @@ async function sendUSDC(tokenAddress, toAddress, amount) {
 
         const payerAddress = await payerSigner.getAddress();
         const balance = await token.balanceOf(payerAddress);
+
+        console.log('💰 Subscription payment check:', {
+            tokenAddress, payerAddress,
+            rawBalance: balance.toString(),
+            humanBalance: ethers.formatUnits(balance, decimals),
+            decimals, needed: amount,
+        });
+
         if (balance < amountWithDecimals) {
-            throw new Error(`Insufficient balance. Have: ${ethers.formatUnits(balance, decimals)}, need: ${amount}`);
+            throw new Error(
+                `Insufficient balance. Wallet ${payerAddress.slice(0,8)}... has ` +
+                `${ethers.formatUnits(balance, decimals)} of token ${tokenAddress.slice(0,8)}... ` +
+                `(need ${amount}). Это free-баланс кошелька, НЕ депонированный на RISEx коллатерал — ` +
+                `если весь USDC уже задепонирован на бирже, тут его не будет.`
+            );
         }
 
         const tx = await token.transfer(toAddress, amountWithDecimals);

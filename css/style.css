@@ -128,7 +128,7 @@ html, body {
 }
 
 /* LEFT — ORDER BOOK */
-.panel-left { overflow-y: auto; padding-bottom: 4px; }
+.panel-left { padding-bottom: 4px; }
 .panel-left::-webkit-scrollbar { width: 3px; }
 .panel-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
@@ -148,8 +148,10 @@ html, body {
     padding: 4px 10px; font-size: 10px; color: var(--text3);
     font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;
 }
-.ob-asks { display: flex; flex-direction: column-reverse; }
-.ob-bids { display: flex; flex-direction: column; }
+.ob-asks { display: flex; flex-direction: column-reverse; max-height: 180px; overflow-y: auto; flex-shrink: 0; }
+.ob-bids { display: flex; flex-direction: column; max-height: 180px; overflow-y: auto; flex-shrink: 0; }
+.ob-asks::-webkit-scrollbar, .ob-bids::-webkit-scrollbar { width: 3px; }
+.ob-asks::-webkit-scrollbar-thumb, .ob-bids::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 .ob-row {
     display: grid; grid-template-columns: 1fr 1fr 1fr;
@@ -174,14 +176,14 @@ html, body {
 }
 .ob-placeholder { text-align: center; color: var(--text3); padding: 14px; font-size: 11px; }
 
-.ob-mode-row { display: flex; gap: 2px; padding: 0 10px 6px; }
+.ob-mode-row { display: flex; gap: 3px; padding: 6px 10px; position: relative; }
 .ob-mode-btn {
-    flex: 1; background: var(--bg3); border: 1px solid var(--border); color: var(--text3);
-    font-size: 10px; padding: 3px 4px; border-radius: 3px; cursor: pointer;
-    font-family: var(--font-mono);
+    flex: 1; background: var(--bg3); border: 1px solid var(--border2); color: var(--text2);
+    font-size: 11px; padding: 5px 4px; border-radius: 4px; cursor: pointer;
+    font-family: var(--font-mono); font-weight: 600;
 }
 .ob-mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
-.ob-mode-btn:hover { color: var(--text); }
+.ob-mode-btn:hover { color: var(--text); border-color: var(--accent); }
 
 /* Heatmap: интенсивность задаётся инлайн-стилем из JS (background), тут только
    акценты дисбаланса и вспышки, которые нельзя выразить одним цветом. */
@@ -199,6 +201,7 @@ html, body {
 
 .ob-analytics {
     border-top: 1px solid var(--border); padding: 8px 10px; background: var(--bg2);
+    flex-shrink: 0; max-height: 220px; overflow-y: auto;
 }
 .ob-analytics-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-bottom: 3px; }
 .ob-analytics-label { color: var(--text3); font-size: 10px; text-transform: uppercase; letter-spacing: .4px; cursor: help; }
@@ -217,7 +220,7 @@ html, body {
 .trade-row .t-size, .trade-row .t-time { color: var(--text2); }
 
 /* CENTER */
-.panel-center { overflow-y: auto; }
+.panel-center { }
 .panel-center::-webkit-scrollbar { width: 3px; }
 .panel-center::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
@@ -1134,6 +1137,10 @@ html, body {
 /* Чистый CSS, без JS — значит работает одинаково и для незалогиненного
    посетителя, который просто наводит мышку, изучая интерфейс. */
 [data-tooltip] { position: relative; }
+[data-tooltip]:not(.chart-tooltip-zone):not(.ob-mode-btn) {
+    border-bottom: 1px dotted var(--text3);
+    cursor: help;
+}
 [data-tooltip]::after {
     content: attr(data-tooltip);
     position: absolute;
@@ -1170,6 +1177,14 @@ html, body {
 .chart-tooltip-zone {
     position: absolute; left: 0; right: 0; pointer-events: auto;
 }
+.chart-tooltip-zone::before {
+    content: 'ⓘ';
+    position: absolute; top: 2px; right: 4px;
+    font-size: 10px; color: var(--text3);
+    opacity: 0.5; pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+.chart-tooltip-zone:hover::before { opacity: 1; color: var(--accent); }
 
 /* ── Discoverability: info-иконки и бейдж NEW ─────────────── */
 .info-dot {

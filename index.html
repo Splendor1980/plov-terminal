@@ -75,7 +75,7 @@
             <span id="ob-total-label">Total</span>
         </div>
         <div class="ob-asks" id="asks-container"><div class="ob-placeholder">Loading...</div></div>
-        <div class="ob-spread"><span id="spread-label">Spread: </span><span id="spread-value">---</span></div>
+        <div class="ob-spread" data-tooltip="Spread — the gap between the best sell price (top of the red side) and the best buy price (top of the green side). A smaller spread means it's cheaper to enter/exit right now."><span id="spread-label">Spread: </span><span id="spread-value">---</span></div>
         <div class="ob-bids" id="bids-container"><div class="ob-placeholder">Loading...</div></div>
         <div class="ob-analytics" id="ob-analytics" style="display:none">
             <div class="ob-analytics-row">
@@ -251,6 +251,21 @@
             </div>
         </div>
 
+        <!-- SUBSCRIPTION PANEL -->
+        <div id="subscription-panel" class="section" data-tooltip="A PLOV subscription is required to place real trades. This is separate from RISEx itself — it covers access to this terminal.">
+            <div class="section-header">
+                <h3>🔐 Subscription</h3>
+            </div>
+            <div class="subscription-content">
+                <p id="subscription-status-text" class="subscription-status trial">
+                    ✨ Trial Mode: 7 days
+                </p>
+                <button id="btn-subscribe" class="btn-sm btn-subscribe trial" onclick="openPaymentModal()">
+                    Subscribe
+                </button>
+            </div>
+        </div>
+
         <!-- Balance -->
         <div class="section">
             <div class="section-title" id="balance-title" data-tooltip="Your real trading account balance on RISEx (equity/collateral), not a raw wallet balance. Refreshes after every trade.">💰 Balance</div>
@@ -293,21 +308,6 @@
             <div class="pos-row"><span class="pos-label" id="stat-label-volume">Volume</span><span class="pos-val" id="stat-volume">0</span></div>
             <div class="pos-row"><span class="pos-label" id="stat-label-best">Best</span><span class="pos-val green" id="stat-best">---</span></div>
             <div class="pos-row"><span class="pos-label" id="stat-label-worst">Worst</span><span class="pos-val red" id="stat-worst">---</span></div>
-        </div>
-
-        <!-- SUBSCRIPTION PANEL -->
-        <div id="subscription-panel" class="section">
-            <div class="section-header">
-                <h3>🔐 Subscription</h3>
-            </div>
-            <div class="subscription-content">
-                <p id="subscription-status-text" class="subscription-status trial">
-                    ✨ Trial Mode: 7 days
-                </p>
-                <button id="btn-subscribe" class="btn-sm btn-subscribe trial" onclick="openPaymentModal()">
-                    Subscribe
-                </button>
-            </div>
         </div>
     </div>
 </div>
