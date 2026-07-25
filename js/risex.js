@@ -1020,9 +1020,9 @@ const TPSL_TIF          = { GTC: 'GTC', GTT: 'GTT', FOK: 'FOK', IOC: 'IOC' };
 // MetaMask) перед подписью — иначе кошелёк отклоняет запрос с ошибкой
 // "chainId should be same as current chainId", если у пользователя открыта
 // другая сеть.
-async function ensureRiseChainInWallet() {
+async function ensureChainInWallet(chainId, chainName, rpcUrl, nativeCurrency, explorerUrl) {
     if (!window.ethereum) return;
-    const targetHex = '0x' + RISE_CHAIN.chainId.toString(16);
+    const targetHex = '0x' + chainId.toString(16);
     try {
         const current = await window.ethereum.request({ method: 'eth_chainId' });
         if (current?.toLowerCase() === targetHex.toLowerCase()) return;
@@ -1039,16 +1039,22 @@ async function ensureRiseChainInWallet() {
                 method: 'wallet_addEthereumChain',
                 params: [{
                     chainId: targetHex,
-                    chainName: 'Rise Mainnet',
-                    rpcUrls: ['https://rpc.risechain.com'],
-                    nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                    blockExplorerUrls: [RISE_CHAIN.explorer],
+                    chainName: chainName,
+                    rpcUrls: [rpcUrl],
+                    nativeCurrency: nativeCurrency || { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                    blockExplorerUrls: explorerUrl ? [explorerUrl] : undefined,
                 }],
             });
         } else {
             throw switchError;
         }
     }
+}
+window.ensureChainInWallet = ensureChainInWallet;
+
+async function ensureRiseChainInWallet() {
+    return ensureChainInWallet(RISE_CHAIN.chainId, 'Rise Mainnet', 'https://rpc.risechain.com',
+        { name: 'ETH', symbol: 'ETH', decimals: 18 }, RISE_CHAIN.explorer);
 }
 window.ensureRiseChainInWallet = ensureRiseChainInWallet;
 

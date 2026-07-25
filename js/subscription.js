@@ -11,9 +11,35 @@
 
 // Константы
 const SUBSCRIPTION_PAYMENT_ADDRESS = '0x3A7B2c686b2ED20798011D17141DD74123521a4b';
-const USDC_CONTRACT_ADDRESS = '0xe436820ba0c69702c1d3e601d421c0ef38262739';
+const USDC_CONTRACT_ADDRESS = '0xe436820ba0c69702c1d3e601d421c0ef38262739'; // Rise (fallback/legacy)
 const SUBSCRIPTION_COST = '1'; // 1 USDC
 const TRIAL_DAYS = 7;
+
+// Адрес получателя один и тот же на всех сетях (обычный EOA-кошелёк, не
+// зависит от сети) — платить можно с любой из них, без моста, оплата
+// подписки не завязана на контракты RISEx (в отличие от торговли).
+// USDC-адреса — официальные, из developer.circle.com/stablecoins/usdc-contract-addresses.
+const PAYMENT_CHAINS = {
+    rise: {
+        name: 'Rise', chainId: 4153,
+        rpcUrl: 'https://rpc.risechain.com',
+        usdc: '0xe436820ba0c69702c1d3e601d421c0ef38262739',
+        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+    },
+    base: {
+        name: 'Base', chainId: 8453,
+        rpcUrl: 'https://mainnet.base.org',
+        usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+    },
+    arbitrum: {
+        name: 'Arbitrum', chainId: 42161,
+        rpcUrl: 'https://arb1.arbitrum.io/rpc',
+        usdc: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
+        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+    },
+};
+let selectedPaymentChain = 'rise';
 
 // Статусы подписки
 let userSubscription = {
@@ -214,6 +240,15 @@ function openPaymentModal() {
         bodyEl.innerHTML = `
             <div class="payment-info">
                 <p>${t('payment_modal_desc')}</p>
+                <div class="payment-chain-select">
+                    <div class="detail-row"><span>Pay from network:</span></div>
+                    <div class="chain-btn-row" id="chain-btn-row">
+                        ${Object.entries(PAYMENT_CHAINS).map(([key, c]) => `
+                            <button class="chain-btn ${key === selectedPaymentChain ? 'active' : ''}"
+                                data-chain="${key}" onclick="selectPaymentChain('${key}')">${c.name}</button>
+                        `).join('')}
+                    </div>
+                </div>
                 <div class="payment-details">
                     <div class="detail-row">
                         <span>${t('payment_amount')}:</span>
@@ -239,6 +274,13 @@ function openPaymentModal() {
     modal.style.display = 'flex';
 }
 
+function selectPaymentChain(key) {
+    if (!PAYMENT_CHAINS[key]) return;
+    selectedPaymentChain = key;
+    document.querySelectorAll('.chain-btn').forEach(b => b.classList.toggle('active', b.dataset.chain === key));
+}
+window.selectPaymentChain = selectPaymentChain;
+
 function closePaymentModal() {
     const modal = document.getElementById('payment-modal');
     if (modal) modal.style.display = 'none';
@@ -259,12 +301,15 @@ async function confirmPayment() {
     
     try {
         addToLog(t('payment_processing'), 'pending');
-        
-        // Отправить USDC
+
+        const chain = PAYMENT_CHAINS[selectedPaymentChain] || PAYMENT_CHAINS.rise;
+
+        // Отправить USDC на выбранной сети
         const tx = await sendUSDC(
-            USDC_CONTRACT_ADDRESS,
+            chain.usdc,
             SUBSCRIPTION_PAYMENT_ADDRESS,
-            SUBSCRIPTION_COST
+            SUBSCRIPTION_COST,
+            chain
         );
         
         if (!tx || !tx.hash) {
@@ -277,8 +322,8 @@ async function confirmPayment() {
         addToLog(`${t('payment_sent')} ${tx.hash.slice(0, 18)}...`, 'pending');
         closePaymentModal();
         
-        // Отслеживать статус
-        await checkPaymentStatus(tx.hash);
+        // Отслеживать статус — на ТОЙ ЖЕ сети, где реально была отправлена tx
+        await checkPaymentStatus(tx.hash, chain);
         
     } catch (error) {
         addToLog('❌ ' + (error.message || error).toString().slice(0, 100), 'error');
@@ -289,7 +334,7 @@ async function confirmPayment() {
 
 // ── Отправка USDC ──────────────────────────────────────────
 
-async function sendUSDC(tokenAddress, toAddress, amount) {
+async function sendUSDC(tokenAddress, toAddress, amount, chain) {
     if (!window.ethereum) {
         throw new Error('Кошелёк (MetaMask/Rabby) не найден в браузере');
     }
@@ -297,7 +342,10 @@ async function sendUSDC(tokenAddress, toAddress, amount) {
     // Оплата подписки — это перевод с ОСНОВНОГО кошелька пользователя
     // (через расширение в браузере), а НЕ с Signer Key — у делегат-ключа
     // по дизайну нет ни средств, ни возможности их выводить.
-    if (typeof ensureRiseChainInWallet === 'function') await ensureRiseChainInWallet();
+    const targetChain = chain || PAYMENT_CHAINS.rise;
+    if (typeof ensureChainInWallet === 'function') {
+        await ensureChainInWallet(targetChain.chainId, targetChain.name, targetChain.rpcUrl, targetChain.nativeCurrency);
+    }
     const browserProvider = new ethers.BrowserProvider(window.ethereum);
     await browserProvider.send('eth_requestAccounts', []);
     const payerSigner = await browserProvider.getSigner();
@@ -318,7 +366,7 @@ async function sendUSDC(tokenAddress, toAddress, amount) {
         const balance = await token.balanceOf(payerAddress);
 
         console.log('💰 Subscription payment check:', {
-            tokenAddress, payerAddress,
+            chain: targetChain.name, tokenAddress, payerAddress,
             rawBalance: balance.toString(),
             humanBalance: ethers.formatUnits(balance, decimals),
             decimals, needed: amount,
@@ -345,15 +393,22 @@ async function sendUSDC(tokenAddress, toAddress, amount) {
 
 // ── Проверка статуса платежа ───────────────────────────────
 
-async function checkPaymentStatus(txHash) {
-    if (!txHash || !ethProvider) return;
-    
+async function checkPaymentStatus(txHash, chain) {
+    if (!txHash) return;
+
+    const targetChain = chain || PAYMENT_CHAINS.rise;
+    // Свой RPC-провайдер под сеть платежа — глобальный ethProvider завязан
+    // только на Rise и никогда не найдёт tx, отправленную на другой сети.
+    const provider = targetChain.chainId === RISE_CHAIN.chainId && ethProvider
+        ? ethProvider
+        : new ethers.JsonRpcProvider(targetChain.rpcUrl);
+
     try {
         addToLog(t('payment_checking'), 'meta');
         
         // Ждем несколько попыток
         for (let i = 0; i < 30; i++) {
-            const receipt = await ethProvider.getTransactionReceipt(txHash);
+            const receipt = await provider.getTransactionReceipt(txHash);
             
             if (receipt) {
                 if (receipt.status === 1) {

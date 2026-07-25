@@ -948,6 +948,16 @@ html, body {
     color: #aaa;
 }
 
+.payment-chain-select { margin-bottom: 14px; }
+.chain-btn-row { display: flex; gap: 6px; margin-top: 6px; }
+.chain-btn {
+    flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(0,255,157,0.2);
+    color: #ccc; padding: 8px 6px; border-radius: 6px; cursor: pointer; font-size: 12px;
+    font-weight: 600; transition: all 0.15s ease;
+}
+.chain-btn.active { background: rgba(0,255,157,0.15); border-color: #00ff9d; color: #00ff9d; }
+.chain-btn:hover { border-color: #00ff9d; }
+
 .payment-details {
     background: rgba(0, 255, 157, 0.05);
     border: 1px solid rgba(0, 255, 157, 0.15);
