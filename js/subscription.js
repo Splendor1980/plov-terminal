@@ -59,21 +59,120 @@ async function initSubscription(uid) {
     
     userSubscription.uid = uid;
     
-    // 1. Загрузить сохраненную подписку
+    // 1. Загрузить локальный кэш — для мгновенной отрисовки, не как источник правды
     loadSubscriptionFromStorage(uid);
     
-    // 2. Проверить статус
+    // 2. Проверить статус (локальная trial-логика)
     checkSubscriptionStatus();
     
-    // 3. Обновить UI
+    // 3. Обновить UI (пока с локальным кэшем — быстро, но не окончательно)
     updateSubscriptionUI();
+
+    // 4. Асинхронно сверить ОПЛАЧЕННУЮ подписку с Firestore — это источник
+    // правды, локальный кэш нельзя доверять (правится в 2 клика через консоль).
+    await syncSubscriptionFromFirestore(uid);
     
-    // 4. Если платеж был инициирован - проверить статус
-    if (userSubscription.lastPaymentHash) {
-        checkPaymentStatus(userSubscription.lastPaymentHash);
+    // 5. Если платеж был инициирован, но не подтверждён — проверить статус
+    if (userSubscription.lastPaymentHash && userSubscription.status !== 'active') {
+        const chain = PAYMENT_CHAINS[userSubscription.lastPaymentChain] || PAYMENT_CHAINS.rise;
+        checkPaymentStatus(userSubscription.lastPaymentHash, chain);
     }
     
     console.log('%cSubscription initialized', 'color:#00ff9d', userSubscription);
+}
+
+// ── Firestore — источник правды для ОПЛАЧЕННОЙ подписки ─────
+// Trial-статус остаётся локальным (низкая цена вопроса), а вот "active"
+// теперь можно получить только через реально подтверждённый платёж —
+// см. claimAndSaveSubscription().
+
+async function syncSubscriptionFromFirestore(uid) {
+    if (typeof db === 'undefined' || !db) return;
+    try {
+        const doc = await db.collection('subscriptions').doc(uid).get();
+        if (!doc.exists) return;
+
+        const data = doc.data();
+        if (data.status === 'active' && data.subscriptionEndDate > Date.now()) {
+            userSubscription.status              = 'active';
+            userSubscription.subscriptionEndDate = data.subscriptionEndDate;
+            userSubscription.lastPaymentHash     = data.lastPaymentHash || null;
+            saveSubscriptionToStorage();
+            updateSubscriptionUI();
+            if (typeof enableTradingButtons === 'function') enableTradingButtons();
+        } else if (userSubscription.status === 'active' &&
+                   (!data.subscriptionEndDate || data.subscriptionEndDate <= Date.now())) {
+            // Локально помечено "active" (например, вручную через localStorage),
+            // но в Firestore нет подтверждения — не доверяем, сбрасываем.
+            userSubscription.status = 'expired';
+            saveSubscriptionToStorage();
+            updateSubscriptionUI();
+        }
+    } catch (e) {
+        console.warn('syncSubscriptionFromFirestore error:', e);
+    }
+}
+
+// Атомарно "застолбить" txHash за этим аккаунтом и записать подписку.
+// Firestore-транзакция гарантирует: если тот же txHash уже был использован
+// (этим же или другим аккаунтом) — вторая попытка проиграет гонку и упадёт,
+// т.е. один реальный платёж нельзя переиспользовать бесконечно/на другие аккаунты.
+async function claimAndSaveSubscription(txHash, chain) {
+    if (typeof db === 'undefined' || !db) {
+        console.warn('Firestore недоступен — активирую только локально (менее надёжно)');
+        activateSubscriptionLocally(txHash, chain);
+        return true;
+    }
+
+    const claimId  = `${chain.chainId}_${txHash.toLowerCase()}`;
+    const claimRef = db.collection('usedPaymentHashes').doc(claimId);
+    const subRef   = db.collection('subscriptions').doc(userSubscription.uid);
+    const endDate  = Date.now() + 30 * 24 * 60 * 60 * 1000;
+
+    try {
+        await db.runTransaction(async (tx) => {
+            const claimDoc = await tx.get(claimRef);
+            if (claimDoc.exists) {
+                throw new Error('ALREADY_CLAIMED');
+            }
+            tx.set(claimRef, {
+                uid: userSubscription.uid,
+                txHash, chainId: chain.chainId,
+                claimedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+            tx.set(subRef, {
+                status: 'active',
+                subscriptionEndDate: endDate,
+                lastPaymentHash: txHash,
+                lastPaymentChain: chain.chainId,
+                verifiedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+        });
+
+        userSubscription.status              = 'active';
+        userSubscription.subscriptionEndDate = endDate;
+        userSubscription.trialStartDate      = null;
+        userSubscription.trialDaysRemaining  = 0;
+        saveSubscriptionToStorage();
+        return true;
+    } catch (e) {
+        if (e.message === 'ALREADY_CLAIMED') return false;
+        console.error('claimAndSaveSubscription error:', e);
+        // Firestore недоступен по другой причине — не блокируем реального
+        // платящего пользователя из-за нашей инфраструктурной проблемы.
+        activateSubscriptionLocally(txHash, chain);
+        return true;
+    }
+}
+
+function activateSubscriptionLocally(txHash, chain) {
+    userSubscription.status              = 'active';
+    userSubscription.subscriptionEndDate = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    userSubscription.trialStartDate      = null;
+    userSubscription.trialDaysRemaining  = 0;
+    userSubscription.lastPaymentHash     = txHash;
+    userSubscription.lastPaymentChain    = chain?.chainId;
+    saveSubscriptionToStorage();
 }
 
 // ── Загрузка подписки из localStorage ─────────────────────
@@ -393,6 +492,31 @@ async function sendUSDC(tokenAddress, toAddress, amount, chain) {
 
 // ── Проверка статуса платежа ───────────────────────────────
 
+// keccak256("Transfer(address,address,uint256)")
+const TRANSFER_EVENT_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+
+// Декодируем логи ресита и убеждаемся, что это РЕАЛЬНО перевод нужного
+// токена, на нужный адрес, на нужную сумму — а не просто "любая успешная
+// транзакция" (которой раньше и ограничивалась вся проверка).
+function verifyUsdcTransferInReceipt(receipt, chain) {
+    const usdcAddr = chain.usdc.toLowerCase();
+    const toAddr   = SUBSCRIPTION_PAYMENT_ADDRESS.toLowerCase();
+    const required = ethers.parseUnits(SUBSCRIPTION_COST, 6); // USDC = 6 decimals везде
+
+    for (const log of receipt.logs || []) {
+        if ((log.address || '').toLowerCase() !== usdcAddr) continue;
+        if (!log.topics || log.topics[0] !== TRANSFER_EVENT_TOPIC) continue;
+        if (log.topics.length < 3) continue;
+
+        const logTo = '0x' + log.topics[2].slice(26);
+        if (logTo.toLowerCase() !== toAddr) continue;
+
+        const value = BigInt(log.data);
+        if (value >= required) return true;
+    }
+    return false;
+}
+
 async function checkPaymentStatus(txHash, chain) {
     if (!txHash) return;
 
@@ -411,21 +535,21 @@ async function checkPaymentStatus(txHash, chain) {
             const receipt = await provider.getTransactionReceipt(txHash);
             
             if (receipt) {
-                if (receipt.status === 1) {
-                    // Успешно!
-                    userSubscription.status = 'active';
-                    userSubscription.subscriptionEndDate = Date.now() + (30 * 24 * 60 * 60 * 1000); // +30 дней
-                    userSubscription.trialStartDate = null;
-                    userSubscription.trialDaysRemaining = 0;
-                    
-                    saveSubscriptionToStorage();
+                const isValidTransfer = receipt.status === 1 && verifyUsdcTransferInReceipt(receipt, targetChain);
+
+                if (isValidTransfer) {
+                    const ok = await claimAndSaveSubscription(txHash, targetChain);
+                    if (!ok) {
+                        addToLog('❌ This payment was already used for another account.', 'error');
+                        return false;
+                    }
+
                     updateSubscriptionUI();
                     enableTradingButtons();
-                    
                     addToLog(`✅ ${t('payment_success')}`, 'success');
                     return true;
                 } else {
-                    // Ошибка
+                    // Ошибка — либо реверт, либо не тот перевод (не тот токен/адрес/сумма)
                     addToLog(t('payment_failed'), 'error');
                     userSubscription.lastPaymentHash = null;
                     return false;
@@ -433,6 +557,7 @@ async function checkPaymentStatus(txHash, chain) {
             }
             
             // Ждем 2 секунды
+
             await new Promise(r => setTimeout(r, 2000));
         }
         
